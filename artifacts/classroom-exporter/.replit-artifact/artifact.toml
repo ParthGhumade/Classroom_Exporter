@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Classroom Exporter"
+version = "1.0.0"
+id = "artifacts/classroom-exporter"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 21630
+
+[services.development]
+run = "pnpm --filter @workspace/classroom-exporter run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/classroom-exporter", "run", "build" ]
+publicDir = "artifacts/classroom-exporter/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21630"
+BASE_PATH = "/"
