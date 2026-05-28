@@ -1,0 +1,32 @@
+Export started.
+Fetching course coursework...
+Could not fetch coursework: The caller does not have permission
+Fetching course materials...
+Fetched materials. Total drive files so far: 0
+Fetching announcements...
+Fetched announcements. Total drive files: 22
+Total unique Drive files found: 22. Checking target folder for duplicates...
+Target folder has 0 existing file(s).
+Failed to copy "OOP-UnitwiseQestionBank (1).docx": File not found: 1bdOAxLQUN9Q4pGcWlADjmoByRqJ1z3b8."OOP-UnitwiseQestionBank (1).docx"[via OOP Question Bank]
+Failed to copy "Unit-5 (1).pptx": File not found: 1bdOAxLQUN9Q4pGcWlADjmoByRqJ1z3b8."Unit-5 (1).pptx"[via Unit-5]
+Failed to copy "Assignment 11.docx": File not found: 1bdOAxLQUN9Q4pGcWlADjmoByRqJ1z3b8."Assignment 11.docx"[via Assignment 11 ,12]
+Failed to copy "Assignment 12.docx": File not found: 1bdOAxLQUN9Q4pGcWlADjmoByRqJ1z3b8."Assignment 12.docx"[via Assignment 11 ,12]
+Failed to copy "Assignmnet6 new.docx": File not found: 1bdOAxLQUN9Q4pGcWlADjmoByRqJ1z3b8."Assignmnet6 new.docx"[via Assignment 6]
+Failed to copy "Assignment 10.docx": File not found: 1bdOAxLQUN9Q4pGcWlADjmoByRqJ1z3b8."Assignment 10.docx"[via Assignment 10]
+Failed to copy "_Assignment-7 new.docx": File not found: 1bdOAxLQUN9Q4pGcWlADjmoByRqJ1z3b8."_Assignment-7 new.docx"[via Assignment  7]
+Failed to copy "Object Oriented Programming 4 (1).pptx": File not found: 1bdOAxLQUN9Q4pGcWlADjmoByRqJ1z3b8."Object Oriented Programming 4 (1).pptx"[via Unit-4 ]
+Failed to copy "FA2 Prblem statement .xlsx": File not found: 1bdOAxLQUN9Q4pGcWlADjmoByRqJ1z3b8."FA2 Prblem statement .xlsx"[via practice problems for FA-2]
+Failed to copy "OOP Unit-3 (2).pptx": File not found: 1bdOAxLQUN9Q4pGcWlADjmoByRqJ1z3b8."OOP Unit-3 (2).pptx"[via OOP UNIT-3]
+Failed to copy "Assignment9 new.docx": File not found: 1bdOAxLQUN9Q4pGcWlADjmoByRqJ1z3b8."Assignment9 new.docx"[via Lab assignment 9]
+Failed to copy "assignment5new.docx": File not found: 1bdOAxLQUN9Q4pGcWlADjmoByRqJ1z3b8."assignment5new.docx"[via Lab assignment 5 ]
+Failed to copy "2703251030215235.pdf": File not found: 1bdOAxLQUN9Q4pGcWlADjmoByRqJ1z3b8."2703251030215235.pdf"[via E-books]
+Failed to copy "The_C++_Programming_Language_4th_Edition_Bjarne_Stroustrup.pdf": File not found: 1bdOAxLQUN9Q4pGcWlADjmoByRqJ1z3b8."The_C++_Programming_Language_4th_Edition_Bjarne_Stroustrup.pdf"[via E-books]
+Failed to copy "OOP Lab Manual.docx (1).docx": File not found: 1bdOAxLQUN9Q4pGcWlADjmoByRqJ1z3b8."OOP Lab Manual.docx (1).docx"[via OOP Lab Manual]
+Failed to copy "Assignment 8.docx": File not found: 1bdOAxLQUN9Q4pGcWlADjmoByRqJ1z3b8."Assignment 8.docx"[via OOP Lab Manual]
+Failed to copy "oop uNIT-2 (1) (2).pptx": File not found: 1bdOAxLQUN9Q4pGcWlADjmoByRqJ1z3b8."oop uNIT-2 (1) (2).pptx"[via OOP Unit-2]
+Failed to copy "oop uNIT-2.pptx": File not found: 1bdOAxLQUN9Q4pGcWlADjmoByRqJ1z3b8."oop uNIT-2.pptx"[via Unit-2]
+Failed to copy "Object Oriented Programming n.pptx": File not found: 1bdOAxLQUN9Q4pGcWlADjmoByRqJ1z3b8."Object Oriented Programming n.pptx"[via Unit-1]
+Failed to copy "Object Oriented Programming n (2).pptx": File not found: 1bdOAxLQUN9Q4pGcWlADjmoByRqJ1z3b8."Object Oriented Programming n (2).pptx"[via Unit-1]
+Failed to copy "List of experiment.pdf": File not found: 1bdOAxLQUN9Q4pGcWlADjmoByRqJ1z3b8."List of experiment.pdf"[via List of experiment updated]
+Failed to copy "oop syllabus.pdf": File not found: 1bdOAxLQUN9Q4pGcWlADjmoByRqJ1z3b8."oop syllabus.pdf"[via OOP Syllabus]
+Export complete. Copied: 0, Skipped: 0, Failed: 22.

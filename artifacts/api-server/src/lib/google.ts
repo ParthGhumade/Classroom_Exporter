@@ -2,9 +2,13 @@ import { google } from "googleapis";
 
 const SCOPES = [
   "https://www.googleapis.com/auth/classroom.courses.readonly",
+  // Teacher scope: list all students' coursework
   "https://www.googleapis.com/auth/classroom.coursework.students.readonly",
+  // Student scope: list own assigned coursework
+  "https://www.googleapis.com/auth/classroom.coursework.me.readonly",
   "https://www.googleapis.com/auth/classroom.courseworkmaterials.readonly",
   "https://www.googleapis.com/auth/classroom.announcements.readonly",
+  // Full Drive access (read + write) to copy files and write to target folder
   "https://www.googleapis.com/auth/drive",
   "openid",
   "email",
