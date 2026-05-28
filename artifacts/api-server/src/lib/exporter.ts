@@ -4,6 +4,29 @@ import { getClassroomClient, getDriveClient } from "./google";
 import { logger } from "./logger";
 
 type Tokens = Record<string, unknown>;
+type DriveClient = ReturnType<typeof getDriveClient>;
+
+// ── Google Workspace MIME type → export MIME + file extension ────────────────
+const GOOGLE_WORKSPACE_EXPORTS: Record<string, { mime: string; ext: string }> = {
+  "application/vnd.google-apps.document": {
+    mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ext: ".docx",
+  },
+  "application/vnd.google-apps.spreadsheet": {
+    mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ext: ".xlsx",
+  },
+  "application/vnd.google-apps.presentation": {
+    mime: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ext: ".pptx",
+  },
+  "application/vnd.google-apps.drawing": {
+    mime: "image/png",
+    ext: ".png",
+  },
+};
+
+// ── DB helpers ───────────────────────────────────────────────────────────────
 
 async function addLog(
   exportId: number,
@@ -37,6 +60,8 @@ async function updateJob(
     .where(eq(exportJobs.id, id));
 }
 
+// ── Classroom file collection ────────────────────────────────────────────────
+
 interface DriveFileRef {
   id: string;
   name: string;
@@ -44,7 +69,9 @@ interface DriveFileRef {
 }
 
 function extractDriveFiles(
-  materials: Array<{ driveFile?: { driveFile?: { id?: string | null; title?: string | null } | null } | null }>,
+  materials: Array<{
+    driveFile?: { driveFile?: { id?: string | null; title?: string | null } | null } | null;
+  }>,
   sourceName: string,
   files: DriveFileRef[]
 ) {
@@ -63,10 +90,6 @@ async function collectDriveFiles(
 ): Promise<DriveFileRef[]> {
   const files: DriveFileRef[] = [];
 
-  // ── Coursework ──────────────────────────────────────────────────────────────
-  // classroom.coursework.students.readonly  → teacher can list all coursework
-  // classroom.coursework.me.readonly        → student can list their own coursework
-  // Both scopes are now requested; the API picks what the account has access to.
   await addLog(exportId, "info", "Fetching course coursework...");
   try {
     let pageToken: string | undefined;
@@ -86,7 +109,6 @@ async function collectDriveFiles(
     await addLog(exportId, "warning", `Could not fetch coursework: ${(err as Error).message}`);
   }
 
-  // ── Course Materials ─────────────────────────────────────────────────────────
   await addLog(exportId, "info", "Fetching course materials...");
   try {
     let pageToken: string | undefined;
@@ -106,7 +128,6 @@ async function collectDriveFiles(
     await addLog(exportId, "warning", `Could not fetch course materials: ${(err as Error).message}`);
   }
 
-  // ── Announcements ────────────────────────────────────────────────────────────
   await addLog(exportId, "info", "Fetching announcements...");
   try {
     let pageToken: string | undefined;
@@ -126,7 +147,6 @@ async function collectDriveFiles(
     await addLog(exportId, "warning", `Could not fetch announcements: ${(err as Error).message}`);
   }
 
-  // De-duplicate by Drive file ID
   const seen = new Set<string>();
   return files.filter((f) => {
     if (seen.has(f.id)) return false;
@@ -135,8 +155,10 @@ async function collectDriveFiles(
   });
 }
 
+// ── Drive helpers ────────────────────────────────────────────────────────────
+
 async function listExistingFiles(
-  drive: ReturnType<typeof getDriveClient>,
+  drive: DriveClient,
   folderId: string
 ): Promise<Map<string, string>> {
   const nameToId = new Map<string, string>();
@@ -157,16 +179,83 @@ async function listExistingFiles(
   return nameToId;
 }
 
-function friendlyDriveError(err: unknown): string {
+function isPermissionError(err: unknown): boolean {
   const msg = (err as Error).message ?? String(err);
-  if (msg.includes("File not found") || msg.includes("404")) {
-    return "No Drive access — the file may be owned by someone else and not shared with your account via Drive (only via Classroom).";
-  }
-  if (msg.includes("permission") || msg.includes("403") || msg.includes("PERMISSION_DENIED")) {
-    return "Permission denied — you need at least Viewer access in Drive to copy this file.";
-  }
-  return msg;
+  return (
+    msg.includes("File not found") ||
+    msg.includes("404") ||
+    msg.includes("403") ||
+    msg.includes("PERMISSION_DENIED") ||
+    msg.includes("permission")
+  );
 }
+
+/**
+ * Download a Drive file as a Node.js readable stream plus the upload MIME type
+ * and final filename. Handles both Google Workspace files (via files.export)
+ * and binary files (via files.get + alt=media).
+ */
+async function downloadFile(
+  drive: DriveClient,
+  fileId: string,
+  originalName: string
+): Promise<{ stream: NodeJS.ReadableStream; uploadMime: string; uploadName: string }> {
+  // First get metadata so we know the MIME type
+  const metaRes = await drive.files.get({
+    fileId,
+    fields: "id,name,mimeType",
+    supportsAllDrives: true,
+  });
+
+  const mimeType = metaRes.data.mimeType ?? "application/octet-stream";
+  const workspaceExport = GOOGLE_WORKSPACE_EXPORTS[mimeType];
+
+  if (workspaceExport) {
+    // Google Workspace file — export to Office format
+    const res = await drive.files.export(
+      { fileId, mimeType: workspaceExport.mime },
+      { responseType: "stream" }
+    );
+    const baseName = originalName.replace(/\.[^.]+$/, ""); // strip any existing ext
+    return {
+      stream: res.data as unknown as NodeJS.ReadableStream,
+      uploadMime: workspaceExport.mime,
+      uploadName: baseName + workspaceExport.ext,
+    };
+  }
+
+  // Binary / non-Workspace file — download raw bytes
+  const res = await drive.files.get(
+    { fileId, alt: "media", supportsAllDrives: true },
+    { responseType: "stream" }
+  );
+  return {
+    stream: res.data as unknown as NodeJS.ReadableStream,
+    uploadMime: mimeType,
+    uploadName: originalName,
+  };
+}
+
+/**
+ * Upload a readable stream into a Drive folder and return the new file ID.
+ */
+async function uploadToFolder(
+  drive: DriveClient,
+  stream: NodeJS.ReadableStream,
+  name: string,
+  mimeType: string,
+  folderId: string
+): Promise<string> {
+  const res = await drive.files.create({
+    requestBody: { name, parents: [folderId] },
+    media: { mimeType, body: stream },
+    fields: "id, name",
+    supportsAllDrives: true,
+  });
+  return res.data.id ?? "";
+}
+
+// ── Main export runner ───────────────────────────────────────────────────────
 
 export async function runExport(exportId: number, tokens: Tokens) {
   try {
@@ -218,31 +307,79 @@ export async function runExport(exportId: number, tokens: Tokens) {
         continue;
       }
 
+      // ── Strategy 1: direct copy ───────────────────────────────────────────
+      let newFileId: string | null = null;
+      let method = "copy";
+
       try {
         const copyRes = await drive.files.copy({
           fileId: file.id,
           supportsAllDrives: true,
-          requestBody: {
-            name: file.name,
-            parents: [job.targetFolderId],
-          },
+          requestBody: { name: file.name, parents: [job.targetFolderId] },
           fields: "id, name",
         });
+        newFileId = copyRes.data.id ?? null;
+      } catch (copyErr: unknown) {
+        if (!isPermissionError(copyErr)) {
+          // Unexpected error — log and move on
+          failed++;
+          await addLog(
+            exportId,
+            "error",
+            `Failed to copy "${file.name}": ${(copyErr as Error).message}`,
+            { fileId: file.id, fileName: file.name, sourceName: file.sourceName }
+          );
+          await updateJob(exportId, { copiedFiles: copied, skippedFiles: skipped, failedFiles: failed });
+          continue;
+        }
+
+        // ── Strategy 2: download → re-upload ─────────────────────────────
+        method = "download+upload";
+        try {
+          const { stream, uploadMime, uploadName } = await downloadFile(
+            drive,
+            file.id,
+            file.name
+          );
+          newFileId = await uploadToFolder(
+            drive,
+            stream,
+            uploadName,
+            uploadMime,
+            job.targetFolderId
+          );
+          // If the exported name differs (e.g. .docx appended), track both
+          existing.set(uploadName, newFileId);
+        } catch (dlErr: unknown) {
+          failed++;
+          const dlMsg = (dlErr as Error).message ?? String(dlErr);
+          const hint = dlMsg.includes("File not found") || dlMsg.includes("404")
+            ? "No read access — file is not shared with this Google account."
+            : dlMsg;
+          await addLog(
+            exportId,
+            "error",
+            `Failed to transfer "${file.name}": ${hint}`,
+            { fileId: file.id, fileName: file.name, sourceName: file.sourceName }
+          );
+          await updateJob(exportId, { copiedFiles: copied, skippedFiles: skipped, failedFiles: failed });
+          continue;
+        }
+      }
+
+      if (newFileId) {
         copied++;
-        existing.set(file.name, copyRes.data.id ?? "");
-        await addLog(exportId, "success", `Copied: ${file.name}`, {
-          fileId: file.id,
-          fileName: file.name,
-          sourceName: file.sourceName,
-          copiedFileId: copyRes.data.id ?? undefined,
-        });
-      } catch (err: unknown) {
-        failed++;
+        existing.set(file.name, newFileId);
         await addLog(
           exportId,
-          "error",
-          `Failed to copy "${file.name}": ${friendlyDriveError(err)}`,
-          { fileId: file.id, fileName: file.name, sourceName: file.sourceName }
+          "success",
+          `${method === "download+upload" ? "Downloaded & uploaded" : "Copied"}: ${file.name}`,
+          {
+            fileId: file.id,
+            fileName: file.name,
+            sourceName: file.sourceName,
+            copiedFileId: newFileId,
+          }
         );
       }
 
