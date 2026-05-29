@@ -16,14 +16,9 @@ const SCOPES = [
 ];
 
 export function getRedirectUri(): string {
-  const domains = process.env.REPLIT_DOMAINS;
-  if (domains) {
-    const primaryDomain = domains.split(",")[0].trim();
-    return `https://${primaryDomain}/api/auth/callback`;
-  }
-  const devDomain = process.env.REPLIT_DEV_DOMAIN;
-  if (devDomain) {
-    return `https://${devDomain}/api/auth/callback`;
+  const appUrl = process.env.APP_URL;
+  if (appUrl) {
+    return `${appUrl.replace(/\/+$/, "")}/api/auth/callback`;
   }
   return "http://localhost:80/api/auth/callback";
 }

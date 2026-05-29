@@ -147,7 +147,7 @@ router.post("/exports/download", async (req: Request, res: Response) => {
           buffer = Buffer.from(await exportRes.arrayBuffer());
         } else {
           entryName = file.name;
-          buffer = await downloadDriveFile(file.id, accessToken);
+          buffer = await downloadDriveFile(drive, file.id, accessToken);
         }
 
         archive.append(buffer, { name: entryName });
