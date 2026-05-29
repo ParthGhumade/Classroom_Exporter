@@ -1,12 +1,14 @@
+import { Readable } from "stream";
 import { db, exportJobs, exportLogs } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { getClassroomClient, getDriveClient } from "./google";
+import { createOAuth2Client, getClassroomClient, getDriveClient } from "./google";
 import { logger } from "./logger";
 
 type Tokens = Record<string, unknown>;
 type DriveClient = ReturnType<typeof getDriveClient>;
+type OAuth2Client = ReturnType<typeof createOAuth2Client>;
 
-// ── Google Workspace MIME type → export MIME + file extension ────────────────
+// ── Google Workspace MIME → export MIME + extension ──────────────────────────
 const GOOGLE_WORKSPACE_EXPORTS: Record<string, { mime: string; ext: string }> = {
   "application/vnd.google-apps.document": {
     mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -25,6 +27,36 @@ const GOOGLE_WORKSPACE_EXPORTS: Record<string, { mime: string; ext: string }> = 
     ext: ".png",
   },
 };
+
+// Extension-based MIME fallback when Drive metadata is inaccessible
+function inferMimeFromExtension(filename: string): string {
+  const ext = filename.split(".").pop()?.toLowerCase() ?? "";
+  const map: Record<string, string> = {
+    pdf: "application/pdf",
+    docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    doc: "application/msword",
+    xls: "application/vnd.ms-excel",
+    ppt: "application/vnd.ms-powerpoint",
+    png: "image/png",
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    gif: "image/gif",
+    svg: "image/svg+xml",
+    txt: "text/plain",
+    csv: "text/csv",
+    zip: "application/zip",
+  };
+  return map[ext] ?? "application/octet-stream";
+}
+
+function bufferToStream(buf: Buffer): NodeJS.ReadableStream {
+  const readable = new Readable();
+  readable.push(buf);
+  readable.push(null);
+  return readable;
+}
 
 // ── DB helpers ───────────────────────────────────────────────────────────────
 
@@ -70,7 +102,9 @@ interface DriveFileRef {
 
 function extractDriveFiles(
   materials: Array<{
-    driveFile?: { driveFile?: { id?: string | null; title?: string | null } | null } | null;
+    driveFile?: {
+      driveFile?: { id?: string | null; title?: string | null } | null;
+    } | null;
   }>,
   sourceName: string,
   files: DriveFileRef[]
@@ -96,11 +130,7 @@ async function collectDriveFiles(
     do {
       const res = await classroom.courses.courseWork.list({ courseId, pageToken });
       for (const item of res.data.courseWork ?? []) {
-        extractDriveFiles(
-          item.materials ?? [],
-          item.title ?? "Untitled Coursework",
-          files
-        );
+        extractDriveFiles(item.materials ?? [], item.title ?? "Untitled Coursework", files);
       }
       pageToken = res.data.nextPageToken ?? undefined;
     } while (pageToken);
@@ -115,11 +145,7 @@ async function collectDriveFiles(
     do {
       const res = await classroom.courses.courseWorkMaterials.list({ courseId, pageToken });
       for (const item of res.data.courseWorkMaterial ?? []) {
-        extractDriveFiles(
-          item.materials ?? [],
-          item.title ?? "Untitled Material",
-          files
-        );
+        extractDriveFiles(item.materials ?? [], item.title ?? "Untitled Material", files);
       }
       pageToken = res.data.nextPageToken ?? undefined;
     } while (pageToken);
@@ -191,46 +217,90 @@ function isPermissionError(err: unknown): boolean {
 }
 
 /**
- * Download a Drive file as a Node.js readable stream plus the upload MIME type
- * and final filename. Handles both Google Workspace files (via files.export)
- * and binary files (via files.get + alt=media).
+ * Raw authenticated fetch helper — bypasses Drive API ACL checks.
+ * Works for files the user's Classroom session can see but Drive API blocks.
+ */
+async function rawFetch(url: string, accessToken: string): Promise<Buffer> {
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    redirect: "follow",
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status} from ${url}`);
+  return Buffer.from(await res.arrayBuffer());
+}
+
+/**
+ * Download a Drive file, returning a readable stream + upload metadata.
+ *
+ * Strategy per file type:
+ *   Google Workspace → drive.files.export()  →  raw fetch export URL (fallback)
+ *   Binary / other   → raw fetch  uc?export=download  (bypasses Drive ACL)
+ *
+ * If drive.files.get for metadata fails (also blocked), MIME is inferred
+ * from the filename extension so we can still attempt the download.
  */
 async function downloadFile(
   drive: DriveClient,
+  oauth2Client: OAuth2Client,
   fileId: string,
   originalName: string
 ): Promise<{ stream: NodeJS.ReadableStream; uploadMime: string; uploadName: string }> {
-  // First get metadata so we know the MIME type
-  const metaRes = await drive.files.get({
-    fileId,
-    fields: "id,name,mimeType",
-    supportsAllDrives: true,
-  });
+  // Obtain a valid access token for raw HTTP requests
+  const tokenResponse = await oauth2Client.getAccessToken();
+  const accessToken = tokenResponse.token;
+  if (!accessToken) throw new Error("No access token available");
 
-  const mimeType = metaRes.data.mimeType ?? "application/octet-stream";
+  // Try to get MIME type from Drive metadata; fall back to extension inference
+  let mimeType: string;
+  try {
+    const metaRes = await drive.files.get({
+      fileId,
+      fields: "id,name,mimeType",
+      supportsAllDrives: true,
+    });
+    mimeType = metaRes.data.mimeType ?? inferMimeFromExtension(originalName);
+  } catch {
+    mimeType = inferMimeFromExtension(originalName);
+  }
+
   const workspaceExport = GOOGLE_WORKSPACE_EXPORTS[mimeType];
 
   if (workspaceExport) {
-    // Google Workspace file — export to Office format
-    const res = await drive.files.export(
-      { fileId, mimeType: workspaceExport.mime },
-      { responseType: "stream" }
-    );
-    const baseName = originalName.replace(/\.[^.]+$/, ""); // strip any existing ext
-    return {
-      stream: res.data as unknown as NodeJS.ReadableStream,
-      uploadMime: workspaceExport.mime,
-      uploadName: baseName + workspaceExport.ext,
-    };
+    const baseName = originalName.replace(/\.[^.]+$/, "");
+    const uploadName = baseName + workspaceExport.ext;
+
+    // Attempt 1: Drive API export (fast, streaming)
+    try {
+      const res = await drive.files.export(
+        { fileId, mimeType: workspaceExport.mime },
+        { responseType: "stream" }
+      );
+      return {
+        stream: res.data as unknown as NodeJS.ReadableStream,
+        uploadMime: workspaceExport.mime,
+        uploadName,
+      };
+    } catch {
+      // Attempt 2: raw authenticated fetch to the Drive export endpoint
+      const exportUrl =
+        `https://www.googleapis.com/drive/v3/files/${fileId}/export` +
+        `?mimeType=${encodeURIComponent(workspaceExport.mime)}`;
+      const buffer = await rawFetch(exportUrl, accessToken);
+      return {
+        stream: bufferToStream(buffer),
+        uploadMime: workspaceExport.mime,
+        uploadName,
+      };
+    }
   }
 
-  // Binary / non-Workspace file — download raw bytes
-  const res = await drive.files.get(
-    { fileId, alt: "media", supportsAllDrives: true },
-    { responseType: "stream" }
-  );
+  // Binary / non-Workspace file: raw authenticated fetch
+  // The uc?export=download endpoint honours Classroom-granted access
+  // that the Drive API files.get(alt=media) endpoint does not.
+  const downloadUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
+  const buffer = await rawFetch(downloadUrl, accessToken);
   return {
-    stream: res.data as unknown as NodeJS.ReadableStream,
+    stream: bufferToStream(buffer),
     uploadMime: mimeType,
     uploadName: originalName,
   };
@@ -262,6 +332,7 @@ export async function runExport(exportId: number, tokens: Tokens) {
     await updateJob(exportId, { status: "running" });
     await addLog(exportId, "info", "Export started.");
 
+    const oauth2Client = createOAuth2Client(tokens);
     const classroom = getClassroomClient(tokens);
     const drive = getDriveClient(tokens);
 
@@ -307,7 +378,7 @@ export async function runExport(exportId: number, tokens: Tokens) {
         continue;
       }
 
-      // ── Strategy 1: direct copy ───────────────────────────────────────────
+      // ── Strategy 1: server-side Drive copy ───────────────────────────────
       let newFileId: string | null = null;
       let method = "copy";
 
@@ -321,7 +392,6 @@ export async function runExport(exportId: number, tokens: Tokens) {
         newFileId = copyRes.data.id ?? null;
       } catch (copyErr: unknown) {
         if (!isPermissionError(copyErr)) {
-          // Unexpected error — log and move on
           failed++;
           await addLog(
             exportId,
@@ -333,11 +403,12 @@ export async function runExport(exportId: number, tokens: Tokens) {
           continue;
         }
 
-        // ── Strategy 2: download → re-upload ─────────────────────────────
+        // ── Strategy 2: download (raw fetch) → re-upload ─────────────────
         method = "download+upload";
         try {
           const { stream, uploadMime, uploadName } = await downloadFile(
             drive,
+            oauth2Client,
             file.id,
             file.name
           );
@@ -348,14 +419,14 @@ export async function runExport(exportId: number, tokens: Tokens) {
             uploadMime,
             job.targetFolderId
           );
-          // If the exported name differs (e.g. .docx appended), track both
           existing.set(uploadName, newFileId);
         } catch (dlErr: unknown) {
           failed++;
           const dlMsg = (dlErr as Error).message ?? String(dlErr);
-          const hint = dlMsg.includes("File not found") || dlMsg.includes("404")
-            ? "No read access — file is not shared with this Google account."
-            : dlMsg;
+          const hint =
+            dlMsg.includes("404") || dlMsg.includes("403")
+              ? `No access to this file even via direct download (${dlMsg}).`
+              : dlMsg;
           await addLog(
             exportId,
             "error",
