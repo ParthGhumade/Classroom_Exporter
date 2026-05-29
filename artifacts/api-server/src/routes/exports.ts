@@ -3,7 +3,7 @@ import { Router } from "express";
 import { db, exportJobs, exportLogs } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 import { GetExportParams, GetExportLogsParams, CreateExportBody } from "@workspace/api-zod";
-import { runExport, discoverCourseFiles, GOOGLE_WORKSPACE_EXPORTS } from "../lib/exporter";
+import { runExport, discoverCourseFiles, GOOGLE_WORKSPACE_EXPORTS, downloadDriveFile } from "../lib/exporter";
 import { createOAuth2Client, getClassroomClient, getDriveClient } from "../lib/google";
 import type { Request, Response } from "express";
 
@@ -130,29 +130,27 @@ router.post("/exports/download", async (req: Request, res: Response) => {
         } catch { /* use extension fallback */ }
 
         const workspaceExport = GOOGLE_WORKSPACE_EXPORTS[mimeType];
-        let downloadUrl: string;
         let entryName: string;
+        let buffer: Buffer;
 
         if (workspaceExport) {
-          downloadUrl = `https://www.googleapis.com/drive/v3/files/${file.id}/export?mimeType=${encodeURIComponent(workspaceExport.mime)}`;
           const baseName = file.name.replace(/\.[^.]+$/, "");
           entryName = `${baseName}${workspaceExport.ext}`;
+          const exportUrl = `https://www.googleapis.com/drive/v3/files/${file.id}/export?mimeType=${encodeURIComponent(workspaceExport.mime)}`;
+          const exportRes = await fetch(exportUrl, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          });
+          if (!exportRes.ok) {
+            req.log.warn({ fileId: file.id, status: exportRes.status }, `Skipping workspace file: ${file.name}`);
+            continue;
+          }
+          buffer = Buffer.from(await exportRes.arrayBuffer());
         } else {
-          downloadUrl = `https://drive.google.com/uc?export=download&id=${file.id}`;
           entryName = file.name;
+          buffer = await downloadDriveFile(file.id, accessToken);
         }
 
-        const fileRes = await fetch(downloadUrl, {
-          headers: { Authorization: `Bearer ${accessToken}` },
-          redirect: "follow",
-        });
-
-        if (fileRes.ok) {
-          const buffer = Buffer.from(await fileRes.arrayBuffer());
-          archive.append(buffer, { name: entryName });
-        } else {
-          req.log.warn({ fileId: file.id, status: fileRes.status }, `Skipping file: ${file.name}`);
-        }
+        archive.append(buffer, { name: entryName });
       } catch (err) {
         req.log.warn({ err, fileId: file.id }, `Failed to add ${file.name} to ZIP`);
       }

@@ -277,6 +277,38 @@ async function rawFetch(url: string, accessToken: string): Promise<Buffer> {
 }
 
 /**
+ * Download a binary Drive file via the uc?export=download endpoint.
+ * Handles the virus-scan confirmation page that Google shows for large files:
+ * instead of the file, Drive returns an HTML page with a ?confirm= token —
+ * we detect this via Content-Type and re-fetch with the extracted token.
+ *
+ * Exported so the ZIP download route can reuse the same logic.
+ */
+export async function downloadDriveFile(fileId: string, accessToken: string): Promise<Buffer> {
+  const url = `https://drive.google.com/uc?export=download&id=${fileId}`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    redirect: "follow",
+  });
+
+  const contentType = res.headers.get("content-type") ?? "";
+  if (contentType.includes("text/html")) {
+    const html = await res.text();
+    const match = html.match(/confirm=([0-9A-Za-z_]+)/);
+    const confirm = match ? match[1] : "t";
+    const confirmedRes = await fetch(
+      `https://drive.google.com/uc?export=download&id=${fileId}&confirm=${confirm}`,
+      { headers: { Authorization: `Bearer ${accessToken}` }, redirect: "follow" }
+    );
+    if (!confirmedRes.ok) throw new Error(`HTTP ${confirmedRes.status} (confirmed) for file ${fileId}`);
+    return Buffer.from(await confirmedRes.arrayBuffer());
+  }
+
+  if (!res.ok) throw new Error(`HTTP ${res.status} for file ${fileId}`);
+  return Buffer.from(await res.arrayBuffer());
+}
+
+/**
  * Download a Drive file, returning a readable stream + upload metadata.
  *
  * Strategy per file type:
@@ -344,8 +376,8 @@ async function downloadFile(
   // Binary / non-Workspace file: raw authenticated fetch
   // The uc?export=download endpoint honours Classroom-granted access
   // that the Drive API files.get(alt=media) endpoint does not.
-  const downloadUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
-  const buffer = await rawFetch(downloadUrl, accessToken);
+  // downloadDriveFile also handles Google's large-file confirmation page.
+  const buffer = await downloadDriveFile(fileId, accessToken);
   return {
     stream: bufferToStream(buffer),
     uploadMime: mimeType,
