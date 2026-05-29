@@ -1,5 +1,5 @@
 import { useLocation } from "wouter";
-import { useListCourses, useGetAuthStatus } from "@workspace/api-client-react";
+import { useListCourses, useGetAuthStatus, getListCoursesQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FolderSymlink, Calendar, BookOpen } from "lucide-react";
@@ -10,7 +10,8 @@ export default function CoursesPage() {
   const { data: authStatus, isLoading: authLoading } = useGetAuthStatus();
   const { data: courses, isLoading: coursesLoading } = useListCourses({
     query: {
-      enabled: !!authStatus?.authenticated
+      queryKey: getListCoursesQueryKey(),
+      enabled: !!authStatus?.authenticated,
     }
   });
 

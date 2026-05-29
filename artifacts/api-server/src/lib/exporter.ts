@@ -344,6 +344,20 @@ export async function runExport(exportId: number, tokens: Tokens) {
 
     if (!job) throw new Error("Export job not found");
 
+    // Create the destination folder in Drive before discovery
+    await addLog(exportId, "info", `Creating Drive folder "Classroom Export — ${job.courseName}"...`);
+    const folderRes = await drive.files.create({
+      requestBody: {
+        name: `Classroom Export — ${job.courseName}`,
+        mimeType: "application/vnd.google-apps.folder",
+      },
+      fields: "id",
+    });
+    const targetFolderId = folderRes.data.id;
+    if (!targetFolderId) throw new Error("Drive folder creation returned no ID");
+    await updateJob(exportId, { targetFolderId });
+    await addLog(exportId, "info", `Folder created. ID: ${targetFolderId}`);
+
     const files = await collectDriveFiles(classroom, job.courseId, exportId);
     const total = files.length;
 
@@ -359,7 +373,7 @@ export async function runExport(exportId: number, tokens: Tokens) {
       `Total unique Drive files found: ${total}. Checking target folder for duplicates...`
     );
 
-    const existing = await listExistingFiles(drive, job.targetFolderId);
+    const existing = await listExistingFiles(drive, targetFolderId);
     await addLog(exportId, "info", `Target folder has ${existing.size} existing file(s).`);
 
     let copied = 0;
@@ -386,10 +400,10 @@ export async function runExport(exportId: number, tokens: Tokens) {
         const copyRes = await drive.files.copy({
           fileId: file.id,
           supportsAllDrives: true,
-          requestBody: { name: file.name, parents: [job.targetFolderId] },
+          requestBody: { name: file.name, parents: [targetFolderId] },
           fields: "id, name",
         });
-        newFileId = copyRes.data.id ?? null;
+        newFileId = (copyRes as { data: { id?: string } }).data.id ?? null;
       } catch (copyErr: unknown) {
         if (!isPermissionError(copyErr)) {
           failed++;
@@ -417,7 +431,7 @@ export async function runExport(exportId: number, tokens: Tokens) {
             stream,
             uploadName,
             uploadMime,
-            job.targetFolderId
+            targetFolderId
           );
           existing.set(uploadName, newFileId);
         } catch (dlErr: unknown) {

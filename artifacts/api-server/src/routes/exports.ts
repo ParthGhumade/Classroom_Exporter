@@ -40,12 +40,12 @@ router.post("/exports", async (req: Request, res: Response) => {
     return;
   }
 
-  const { courseId, courseName, targetFolderId } = parsed.data;
+  const { courseId, courseName } = parsed.data;
 
   try {
     const [job] = await db
       .insert(exportJobs)
-      .values({ courseId, courseName, targetFolderId, status: "pending" })
+      .values({ courseId, courseName, status: "pending" })
       .returning();
 
     const tokenSnapshot = { ...tokens };

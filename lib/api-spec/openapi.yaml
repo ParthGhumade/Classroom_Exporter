@@ -110,7 +110,7 @@ paths:
       operationId: createExport
       tags: [exports]
       summary: Start an export job
-      description: Start exporting all Drive files from a Google Classroom course
+      description: Start exporting all Drive files from a Google Classroom course into an auto-created Drive folder
       requestBody:
         required: true
         content:
@@ -238,12 +238,9 @@ components:
           type: string
         courseName:
           type: string
-        targetFolderId:
-          type: string
       required:
         - courseId
         - courseName
-        - targetFolderId
 
     ExportJob:
       type: object
@@ -255,7 +252,7 @@ components:
         courseName:
           type: string
         targetFolderId:
-          type: string
+          type: ["string", "null"]
         status:
           type: string
           enum: [pending, running, completed, failed]
@@ -275,7 +272,6 @@ components:
         - id
         - courseId
         - courseName
-        - targetFolderId
         - status
         - createdAt
         - updatedAt
@@ -290,7 +286,7 @@ components:
         courseName:
           type: string
         targetFolderId:
-          type: string
+          type: ["string", "null"]
         status:
           type: string
           enum: [pending, running, completed, failed]
@@ -314,7 +310,6 @@ components:
         - id
         - courseId
         - courseName
-        - targetFolderId
         - status
         - createdAt
         - updatedAt

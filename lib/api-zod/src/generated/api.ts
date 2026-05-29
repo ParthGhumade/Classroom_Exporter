@@ -72,7 +72,7 @@ export const ListExportsResponseItem = zod.object({
   "id": zod.number(),
   "courseId": zod.string(),
   "courseName": zod.string(),
-  "targetFolderId": zod.string(),
+  "targetFolderId": zod.string().nullish(),
   "status": zod.enum(['pending', 'running', 'completed', 'failed']),
   "totalFiles": zod.number().nullish(),
   "copiedFiles": zod.number().nullish(),
@@ -85,13 +85,12 @@ export const ListExportsResponse = zod.array(ListExportsResponseItem)
 
 
 /**
- * Start exporting all Drive files from a Google Classroom course
+ * Start exporting all Drive files from a Google Classroom course into an auto-created Drive folder
  * @summary Start an export job
  */
 export const CreateExportBody = zod.object({
   "courseId": zod.string(),
-  "courseName": zod.string(),
-  "targetFolderId": zod.string()
+  "courseName": zod.string()
 })
 
 
@@ -107,7 +106,7 @@ export const GetExportResponse = zod.object({
   "id": zod.number(),
   "courseId": zod.string(),
   "courseName": zod.string(),
-  "targetFolderId": zod.string(),
+  "targetFolderId": zod.string().nullish(),
   "status": zod.enum(['pending', 'running', 'completed', 'failed']),
   "totalFiles": zod.number().nullish(),
   "copiedFiles": zod.number().nullish(),

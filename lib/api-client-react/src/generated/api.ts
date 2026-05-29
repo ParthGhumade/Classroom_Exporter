@@ -512,7 +512,7 @@ export const getCreateExportUrl = () => {
 }
 
 /**
- * Start exporting all Drive files from a Google Classroom course
+ * Start exporting all Drive files from a Google Classroom course into an auto-created Drive folder
  * @summary Start an export job
  */
 export const createExport = async (exportInput: ExportInput, options?: RequestInit): Promise<ExportJob> => {

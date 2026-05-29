@@ -1,5 +1,5 @@
 import { useLocation } from "wouter";
-import { useListExports, useGetAuthStatus } from "@workspace/api-client-react";
+import { useListExports, useGetAuthStatus, getListExportsQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -11,8 +11,9 @@ export default function ExportsHistoryPage() {
   const { data: authStatus, isLoading: authLoading } = useGetAuthStatus();
   const { data: exports, isLoading: exportsLoading } = useListExports({
     query: {
+      queryKey: getListExportsQueryKey(),
       enabled: !!authStatus?.authenticated,
-      refetchInterval: 5000 // Refresh list periodically
+      refetchInterval: 5000,
     }
   });
 

@@ -6,7 +6,7 @@ export const exportJobs = pgTable("export_jobs", {
   id: serial("id").primaryKey(),
   courseId: text("course_id").notNull(),
   courseName: text("course_name").notNull(),
-  targetFolderId: text("target_folder_id").notNull(),
+  targetFolderId: text("target_folder_id"),
   status: text("status").notNull().default("pending"),
   totalFiles: integer("total_files"),
   copiedFiles: integer("copied_files"),

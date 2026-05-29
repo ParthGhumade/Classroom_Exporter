@@ -42,7 +42,6 @@ export interface Course {
 export interface ExportInput {
   courseId: string;
   courseName: string;
-  targetFolderId: string;
 }
 
 export type ExportJobStatus = typeof ExportJobStatus[keyof typeof ExportJobStatus];
@@ -59,7 +58,8 @@ export interface ExportJob {
   id: number;
   courseId: string;
   courseName: string;
-  targetFolderId: string;
+  /** @nullable */
+  targetFolderId?: string | null;
   status: ExportJobStatus;
   /** @nullable */
   totalFiles?: number | null;
@@ -113,7 +113,8 @@ export interface ExportJobDetail {
   id: number;
   courseId: string;
   courseName: string;
-  targetFolderId: string;
+  /** @nullable */
+  targetFolderId?: string | null;
   status: ExportJobDetailStatus;
   /** @nullable */
   totalFiles?: number | null;

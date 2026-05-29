@@ -11,7 +11,8 @@ export interface ExportJob {
   id: number;
   courseId: string;
   courseName: string;
-  targetFolderId: string;
+  /** @nullable */
+  targetFolderId?: string | null;
   status: ExportJobStatus;
   /** @nullable */
   totalFiles?: number | null;

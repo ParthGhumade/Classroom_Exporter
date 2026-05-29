@@ -9,5 +9,4 @@
 export interface ExportInput {
   courseId: string;
   courseName: string;
-  targetFolderId: string;
 }
