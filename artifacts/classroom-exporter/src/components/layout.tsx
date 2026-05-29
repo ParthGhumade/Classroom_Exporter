@@ -59,6 +59,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <main className="flex-1 container mx-auto px-4 py-8 max-w-6xl">
         {children}
       </main>
+
+      <footer className="border-t bg-card/50 mt-auto">
+        <div className="container mx-auto px-4 py-4 flex flex-col sm:flex-row items-center justify-center gap-3 text-sm text-muted-foreground">
+          <span>© {new Date().getFullYear()} Classroom Exporter</span>
+          <span className="hidden sm:inline">·</span>
+          <a href="/privacy.html" className="hover:text-foreground transition-colors underline-offset-4 hover:underline">Privacy Policy</a>
+          <span className="hidden sm:inline">·</span>
+          <a href="/terms.html" className="hover:text-foreground transition-colors underline-offset-4 hover:underline">Terms of Service</a>
+        </div>
+      </footer>
     </div>
   );
 }

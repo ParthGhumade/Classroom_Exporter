@@ -23,8 +23,8 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="min-h-[80vh] flex items-center justify-center py-12">
-      <div className="max-w-5xl w-full grid md:grid-cols-2 gap-12 items-center">
+    <div className="min-h-[80vh] flex flex-col items-center justify-center py-12">
+      <div className="max-w-5xl w-full grid md:grid-cols-2 gap-12 items-center flex-1">
         <div className="space-y-8">
           <div>
             <div className="inline-flex items-center justify-center p-3 bg-primary/10 rounded-xl mb-6 text-primary">
@@ -95,6 +95,14 @@ export default function AuthPage() {
           </Card>
         </div>
       </div>
+
+      <footer className="w-full max-w-5xl mt-12 pt-6 border-t border-muted/30 flex flex-col sm:flex-row items-center justify-center gap-4 text-sm text-muted-foreground">
+        <span>© {new Date().getFullYear()} Classroom Exporter</span>
+        <span className="hidden sm:inline">·</span>
+        <a href="/privacy.html" className="hover:text-foreground transition-colors underline-offset-4 hover:underline">Privacy Policy</a>
+        <span className="hidden sm:inline">·</span>
+        <a href="/terms.html" className="hover:text-foreground transition-colors underline-offset-4 hover:underline">Terms of Service</a>
+      </footer>
     </div>
   );
 }
