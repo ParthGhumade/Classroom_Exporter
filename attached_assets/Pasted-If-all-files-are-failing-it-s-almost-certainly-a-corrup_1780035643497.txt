@@ -1,0 +1,50 @@
+If all files are failing it's almost certainly a corruption issue during the ZIP streaming — the files are being appended to the archive before they're fully downloaded, so every file ends up truncated.
+Here's the prompt to fix it in Replit:
+
+Fix corrupted files in the ZIP download route.
+The current implementation streams file downloads directly into the archiver, which causes corruption. Change the approach to fully buffer each file before appending it to the ZIP.
+In the /api/exports/download route, replace the current file streaming logic with this pattern:
+tsfor (const file of driveFiles) {
+  try {
+    const tokenResponse = await oauth2Client.getAccessToken();
+    const accessToken = tokenResponse.token;
+
+    let buffer: Buffer;
+    let fileName: string;
+
+    if (isGoogleWorkspaceFile(file.mimeType)) {
+      const exportMimeType = getExportMimeType(file.mimeType);
+      const ext = getExtension(file.mimeType);
+      fileName = `${file.name}.${ext}`;
+
+      const res = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${file.id}/export?mimeType=${encodeURIComponent(exportMimeType)}`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      buffer = Buffer.from(await res.arrayBuffer());
+    } else {
+      fileName = file.name;
+
+      const res = await fetch(
+        `https://drive.google.com/uc?export=download&id=${file.id}`,
+        { headers: { Authorization: `Bearer ${accessToken}` }, redirect: 'follow' }
+      );
+      buffer = Buffer.from(await res.arrayBuffer());
+    }
+
+    archive.append(buffer, { name: fileName });
+
+  } catch (err) {
+    // skip failed files, continue with rest
+    console.error(`Failed to download ${file.name}:`, err);
+  }
+}
+
+archive.finalize(); // only called after ALL files are appended
+Make sure archive.finalize() is called exactly once, after the entire loop completes — not inside the loop or in a callback.
+Also ensure the response headers are set before any data is written:
+tsres.setHeader('Content-Type', 'application/zip');
+res.setHeader('Content-Disposition', `attachment; filename="${courseName}.zip"`);
+archive.pipe(res);
+// then start the loop
+No other changes needed.
