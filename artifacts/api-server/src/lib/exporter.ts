@@ -9,7 +9,7 @@ type DriveClient = ReturnType<typeof getDriveClient>;
 type OAuth2Client = ReturnType<typeof createOAuth2Client>;
 
 // ── Google Workspace MIME → export MIME + extension ──────────────────────────
-const GOOGLE_WORKSPACE_EXPORTS: Record<string, { mime: string; ext: string }> = {
+export const GOOGLE_WORKSPACE_EXPORTS: Record<string, { mime: string; ext: string }> = {
   "application/vnd.google-apps.document": {
     mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     ext: ".docx",
@@ -94,7 +94,7 @@ async function updateJob(
 
 // ── Classroom file collection ────────────────────────────────────────────────
 
-interface DriveFileRef {
+export interface DriveFileRef {
   id: string;
   name: string;
   sourceName: string;
@@ -117,6 +117,57 @@ function extractDriveFiles(
   }
 }
 
+/**
+ * Pure file discovery — no DB logging. Exported for use by the ZIP download route.
+ */
+export async function discoverCourseFiles(
+  classroom: ReturnType<typeof getClassroomClient>,
+  courseId: string
+): Promise<DriveFileRef[]> {
+  const files: DriveFileRef[] = [];
+
+  try {
+    let pageToken: string | undefined;
+    do {
+      const res = await classroom.courses.courseWork.list({ courseId, pageToken });
+      for (const item of res.data.courseWork ?? []) {
+        extractDriveFiles(item.materials ?? [], item.title ?? "Untitled Coursework", files);
+      }
+      pageToken = res.data.nextPageToken ?? undefined;
+    } while (pageToken);
+  } catch { /* no teacher access — skip */ }
+
+  try {
+    let pageToken: string | undefined;
+    do {
+      const res = await classroom.courses.courseWorkMaterials.list({ courseId, pageToken });
+      for (const item of res.data.courseWorkMaterial ?? []) {
+        extractDriveFiles(item.materials ?? [], item.title ?? "Untitled Material", files);
+      }
+      pageToken = res.data.nextPageToken ?? undefined;
+    } while (pageToken);
+  } catch { /* skip */ }
+
+  try {
+    let pageToken: string | undefined;
+    do {
+      const res = await classroom.courses.announcements.list({ courseId, pageToken });
+      for (const item of res.data.announcements ?? []) {
+        extractDriveFiles(item.materials ?? [], item.text?.slice(0, 60) ?? "Announcement", files);
+      }
+      pageToken = res.data.nextPageToken ?? undefined;
+    } while (pageToken);
+  } catch { /* skip */ }
+
+  const seen = new Set<string>();
+  return files.filter((f) => {
+    if (seen.has(f.id)) return false;
+    seen.add(f.id);
+    return true;
+  });
+}
+
+/** DB-logging wrapper used by the background export runner. */
 async function collectDriveFiles(
   classroom: ReturnType<typeof getClassroomClient>,
   courseId: string,
@@ -160,11 +211,7 @@ async function collectDriveFiles(
     do {
       const res = await classroom.courses.announcements.list({ courseId, pageToken });
       for (const item of res.data.announcements ?? []) {
-        extractDriveFiles(
-          item.materials ?? [],
-          item.text?.slice(0, 60) ?? "Announcement",
-          files
-        );
+        extractDriveFiles(item.materials ?? [], item.text?.slice(0, 60) ?? "Announcement", files);
       }
       pageToken = res.data.nextPageToken ?? undefined;
     } while (pageToken);
