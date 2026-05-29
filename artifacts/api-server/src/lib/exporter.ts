@@ -276,6 +276,39 @@ async function rawFetch(url: string, accessToken: string): Promise<Buffer> {
   return Buffer.from(await res.arrayBuffer());
 }
 
+function bufferFromResponseData(data: unknown): Buffer {
+  if (Buffer.isBuffer(data)) return data;
+  if (data instanceof ArrayBuffer) return Buffer.from(data);
+  if (ArrayBuffer.isView(data)) {
+    return Buffer.from(data.buffer, data.byteOffset, data.byteLength);
+  }
+  if (typeof data === "string") return Buffer.from(data);
+  throw new Error("Unsupported binary response type");
+}
+
+function assertDownloadIsBinary(contentType: string, body: Buffer, fileId: string) {
+  const normalized = contentType.toLowerCase();
+  if (normalized.includes("text/html") || normalized.includes("application/json")) {
+    const preview = body.toString("utf8", 0, Math.min(body.length, 200)).replace(/\s+/g, " ").trim();
+    throw new Error(`Drive returned ${contentType || "a non-binary response"} for file ${fileId}: ${preview}`);
+  }
+}
+
+function extractDriveConfirmToken(html: string): string | null {
+  const patterns = [
+    /confirm=([0-9A-Za-z_-]+)/,
+    /name="confirm"\s+value="([^"]+)"/,
+    /"confirm"\s*:\s*"([^"]+)"/,
+  ];
+
+  for (const pattern of patterns) {
+    const match = html.match(pattern);
+    if (match?.[1]) return match[1].replace(/&amp;.*/, "");
+  }
+
+  return null;
+}
+
 /**
  * Download a binary Drive file via the uc?export=download endpoint.
  * Handles the virus-scan confirmation page that Google shows for large files:
@@ -284,7 +317,24 @@ async function rawFetch(url: string, accessToken: string): Promise<Buffer> {
  *
  * Exported so the ZIP download route can reuse the same logic.
  */
-export async function downloadDriveFile(fileId: string, accessToken: string): Promise<Buffer> {
+export async function downloadDriveFile(
+  drive: DriveClient,
+  fileId: string,
+  accessToken: string
+): Promise<Buffer> {
+  try {
+    const mediaRes = await drive.files.get(
+      { fileId, alt: "media", supportsAllDrives: true },
+      { responseType: "arraybuffer" }
+    );
+    const buffer = bufferFromResponseData(mediaRes.data);
+    assertDownloadIsBinary(String(mediaRes.headers?.["content-type"] ?? ""), buffer, fileId);
+    return buffer;
+  } catch {
+    // Fall back to the browser-style download URL. Some Classroom attachments are
+    // visible to the signed-in user but rejected by Drive media downloads.
+  }
+
   const url = `https://drive.google.com/uc?export=download&id=${fileId}`;
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${accessToken}` },
@@ -294,18 +344,22 @@ export async function downloadDriveFile(fileId: string, accessToken: string): Pr
   const contentType = res.headers.get("content-type") ?? "";
   if (contentType.includes("text/html")) {
     const html = await res.text();
-    const match = html.match(/confirm=([0-9A-Za-z_]+)/);
-    const confirm = match ? match[1] : "t";
+    const confirm = extractDriveConfirmToken(html);
+    if (!confirm) throw new Error(`Drive returned an HTML page instead of file bytes for ${fileId}`);
     const confirmedRes = await fetch(
       `https://drive.google.com/uc?export=download&id=${fileId}&confirm=${confirm}`,
       { headers: { Authorization: `Bearer ${accessToken}` }, redirect: "follow" }
     );
     if (!confirmedRes.ok) throw new Error(`HTTP ${confirmedRes.status} (confirmed) for file ${fileId}`);
-    return Buffer.from(await confirmedRes.arrayBuffer());
+    const confirmedBuffer = Buffer.from(await confirmedRes.arrayBuffer());
+    assertDownloadIsBinary(confirmedRes.headers.get("content-type") ?? "", confirmedBuffer, fileId);
+    return confirmedBuffer;
   }
 
   if (!res.ok) throw new Error(`HTTP ${res.status} for file ${fileId}`);
-  return Buffer.from(await res.arrayBuffer());
+  const buffer = Buffer.from(await res.arrayBuffer());
+  assertDownloadIsBinary(contentType, buffer, fileId);
+  return buffer;
 }
 
 /**
@@ -377,7 +431,7 @@ async function downloadFile(
   // The uc?export=download endpoint honours Classroom-granted access
   // that the Drive API files.get(alt=media) endpoint does not.
   // downloadDriveFile also handles Google's large-file confirmation page.
-  const buffer = await downloadDriveFile(fileId, accessToken);
+  const buffer = await downloadDriveFile(drive, fileId, accessToken);
   return {
     stream: bufferToStream(buffer),
     uploadMime: mimeType,
