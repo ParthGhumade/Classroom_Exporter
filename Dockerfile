@@ -21,8 +21,8 @@ RUN corepack enable
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc tsconfig.base.json tsconfig.json ./
 COPY lib ./lib
-COPY artifacts/api-server ./artifacts/api-server
-COPY artifacts/classroom-exporter/dist ./artifacts/classroom-exporter/dist
+COPY --from=build /app/artifacts/api-server ./artifacts/api-server
+COPY --from=build /app/artifacts/classroom-exporter/dist ./artifacts/classroom-exporter/dist
 
 RUN pnpm install --prod --frozen-lockfile
 
