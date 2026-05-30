@@ -1,2 +1,3 @@
 User-agent: *
 Allow: /
+Sitemap: https://classroom-exporter.onrender.com/sitemap.xml
