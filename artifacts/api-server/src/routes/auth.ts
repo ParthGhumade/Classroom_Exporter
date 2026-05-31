@@ -1,4 +1,5 @@
 import { Router } from "express";
+import crypto from "crypto";
 import { getAuthUrl, exchangeCodeForTokens, getUserInfo } from "../lib/google";
 import type { Request, Response } from "express";
 
@@ -7,6 +8,7 @@ declare module "express-session" {
     tokens?: Record<string, unknown>;
     userEmail?: string | null;
     userName?: string | null;
+    oauthState?: string;
   }
 }
 
@@ -25,9 +27,11 @@ router.get("/auth/status", async (req: Request, res: Response) => {
   });
 });
 
-router.get("/auth/url", (_req: Request, res: Response) => {
+router.get("/auth/url", (req: Request, res: Response) => {
   try {
-    const url = getAuthUrl();
+    const state = crypto.randomBytes(32).toString("hex");
+    req.session.oauthState = state;
+    const url = getAuthUrl(state);
     res.json({ url });
   } catch (err: unknown) {
     res.status(500).json({ error: (err as Error).message });
@@ -37,6 +41,16 @@ router.get("/auth/url", (_req: Request, res: Response) => {
 router.get("/auth/callback", async (req: Request, res: Response) => {
   const code = req.query.code as string | undefined;
   const error = req.query.error as string | undefined;
+  const state = req.query.state as string | undefined;
+
+  const storedState = req.session.oauthState;
+  
+  if (!state || !storedState || state !== storedState) {
+    res.status(400).send("400 Bad Request / Invalid State Parameter (CSRF Warning)");
+    return;
+  }
+  
+  delete req.session.oauthState;
 
   if (error || !code) {
     res.redirect("/?error=auth_failed");
