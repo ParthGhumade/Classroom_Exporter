@@ -42,12 +42,13 @@ export function createOAuth2Client(tokens?: Record<string, unknown>) {
   return client;
 }
 
-export function getAuthUrl(): string {
+export function getAuthUrl(state?: string): string {
   const client = createOAuth2Client();
   return client.generateAuthUrl({
     access_type: "offline",
     scope: SCOPES,
     prompt: "consent",
+    ...(state ? { state } : {})
   });
 }
 
