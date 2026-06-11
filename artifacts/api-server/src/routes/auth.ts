@@ -34,10 +34,16 @@ router.get("/auth/url", (req: Request, res: Response) => {
     req.session.oauthState = state;
     req.session.save((err) => {
       if (err) {
+        req.log?.error({ err }, "Session save error");
         return res.status(500).json({ error: "Failed to save session" });
       }
-      const url = getAuthUrl(state);
-      res.json({ url });
+      try {
+        const url = getAuthUrl(state);
+        res.json({ url });
+      } catch (innerErr) {
+        req.log?.error({ err: innerErr }, "Failed to generate auth url");
+        res.status(500).json({ error: (innerErr as Error).message });
+      }
     });
   } catch (err: unknown) {
     res.status(500).json({ error: (err as Error).message });
