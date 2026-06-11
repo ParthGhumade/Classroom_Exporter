@@ -1,6 +1,5 @@
 # See https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
 .env
-.env.example
 artifacts\api-server\.env
 # compiled output
 dist
