@@ -26,5 +26,10 @@ COPY --from=build /app/artifacts/classroom-exporter/dist ./artifacts/classroom-e
 
 RUN pnpm install --prod --frozen-lockfile
 
+USER node
 EXPOSE 10000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:10000/api/healthz', (r) => { if (r.statusCode !== 200) process.exit(1) }).on('error', () => process.exit(1))"
+
 CMD ["node", "artifacts/api-server/dist/index.mjs"]

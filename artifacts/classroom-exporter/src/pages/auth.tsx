@@ -18,7 +18,16 @@ export default function AuthPage() {
 
   const handleConnect = () => {
     if (authUrl?.url) {
-      window.location.href = authUrl.url;
+      try {
+        const url = new URL(authUrl.url);
+        if (url.hostname === "accounts.google.com") {
+          window.location.href = authUrl.url;
+        } else {
+          console.error("Invalid authentication URL domain.");
+        }
+      } catch (err) {
+        console.error("Invalid URL returned from server.");
+      }
     }
   };
 

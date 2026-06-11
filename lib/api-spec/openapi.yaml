@@ -127,6 +127,33 @@ paths:
         "401":
           description: Not authenticated
 
+  /exports/download:
+    post:
+      operationId: downloadExport
+      tags: [exports]
+      summary: Download exported course files
+      description: Returns a ZIP file containing all Google Drive files attached to a classroom course
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExportInput"
+      responses:
+        "200":
+          description: ZIP archive
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: Invalid request
+        "401":
+          description: Not authenticated
+        "500":
+          description: Internal server error
+
   /exports/{id}:
     get:
       operationId: getExport
@@ -139,6 +166,7 @@ paths:
           required: true
           schema:
             type: integer
+            minimum: 1
       responses:
         "200":
           description: Export job
@@ -161,6 +189,7 @@ paths:
           required: true
           schema:
             type: integer
+            minimum: 1
       responses:
         "200":
           description: Export log entries
@@ -236,8 +265,12 @@ components:
       properties:
         courseId:
           type: string
+          minLength: 1
+          maxLength: 100
         courseName:
           type: string
+          minLength: 1
+          maxLength: 200
       required:
         - courseId
         - courseName

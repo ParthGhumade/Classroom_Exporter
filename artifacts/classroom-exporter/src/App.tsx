@@ -3,6 +3,20 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
+import { useGetAuthStatus } from "@workspace/api-client-react";
+import { useLocation } from "wouter";
+
+function AuthGuard({ children }: { children: React.ReactNode }) {
+  const { data, isLoading } = useGetAuthStatus();
+  const [, setLocation] = useLocation();
+
+  if (isLoading) return null;
+  if (!data?.authenticated) {
+    setLocation("/");
+    return null;
+  }
+  return <>{children}</>;
+}
 
 import Layout from "@/components/layout";
 import AuthPage from "@/pages/auth";
@@ -19,16 +33,16 @@ function Router() {
       <Route path="/" component={AuthPage} />
       
       <Route path="/courses">
-        <Layout><CoursesPage /></Layout>
+        <AuthGuard><Layout><CoursesPage /></Layout></AuthGuard>
       </Route>
       <Route path="/export">
-        <Layout><ExportSetupPage /></Layout>
+        <AuthGuard><Layout><ExportSetupPage /></Layout></AuthGuard>
       </Route>
       <Route path="/exports">
-        <Layout><ExportsHistoryPage /></Layout>
+        <AuthGuard><Layout><ExportsHistoryPage /></Layout></AuthGuard>
       </Route>
       <Route path="/exports/:id">
-        <Layout><ExportDetailPage /></Layout>
+        <AuthGuard><Layout><ExportDetailPage /></Layout></AuthGuard>
       </Route>
       
       <Route component={NotFound} />

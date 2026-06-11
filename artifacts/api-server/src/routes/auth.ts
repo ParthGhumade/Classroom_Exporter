@@ -60,18 +60,26 @@ router.get("/auth/callback", async (req: Request, res: Response) => {
 
   try {
     const tokens = await exchangeCodeForTokens(code);
-    req.session.tokens = encryptObject(tokens as Record<string, unknown>);
+    
+    req.session.regenerate(async (err) => {
+      if (err) {
+        req.log.error({ err }, "Session regeneration failed");
+        return res.redirect("/?error=auth_failed");
+      }
+      
+      req.session.tokens = encryptObject(tokens as Record<string, unknown>);
 
-    try {
-      const userInfo = await getUserInfo(tokens as Record<string, unknown>);
-      req.session.userEmail = userInfo.email ?? null;
-      req.session.userName = userInfo.name ?? null;
-    } catch {
-      req.session.userEmail = null;
-      req.session.userName = null;
-    }
+      try {
+        const userInfo = await getUserInfo(tokens as Record<string, unknown>);
+        req.session.userEmail = userInfo.email ?? null;
+        req.session.userName = userInfo.name ?? null;
+      } catch {
+        req.session.userEmail = null;
+        req.session.userName = null;
+      }
 
-    res.redirect("/exports");
+      res.redirect("/exports");
+    });
   } catch (err: unknown) {
     req.log.error({ err }, "OAuth callback failed");
     res.redirect("/?error=token_exchange_failed");
@@ -80,6 +88,7 @@ router.get("/auth/callback", async (req: Request, res: Response) => {
 
 router.delete("/auth/logout", (req: Request, res: Response) => {
   req.session.destroy(() => {
+    res.clearCookie("connect.sid");
     res.json({ status: "ok" });
   });
 });

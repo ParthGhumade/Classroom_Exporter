@@ -2,7 +2,7 @@ import archiver from "archiver";
 import { Router } from "express";
 import { db, exportJobs, exportLogs } from "@workspace/db";
 import { eq, desc, and } from "drizzle-orm";
-import { decryptObject } from "../lib/crypto";
+import { decryptObject, encryptObject } from "../lib/crypto";
 import { GetExportParams, GetExportLogsParams, CreateExportBody } from "@workspace/api-zod";
 import { runExport, discoverCourseFiles, GOOGLE_WORKSPACE_EXPORTS, downloadDriveFile } from "../lib/exporter";
 import { createOAuth2Client, getClassroomClient, getDriveClient } from "../lib/google";
@@ -39,7 +39,8 @@ router.get("/exports", async (req: Request, res: Response) => {
       .select()
       .from(exportJobs)
       .where(eq(exportJobs.userEmail, req.session.userEmail || ""))
-      .orderBy(desc(exportJobs.createdAt));
+      .orderBy(desc(exportJobs.createdAt))
+      .limit(50);
 
     res.json(
       jobs.map((j) => ({
@@ -50,7 +51,7 @@ router.get("/exports", async (req: Request, res: Response) => {
     );
   } catch (err: unknown) {
     req.log.error({ err }, "Failed to list exports");
-    res.status(500).json({ error: (err as Error).message });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -94,7 +95,7 @@ router.post("/exports", async (req: Request, res: Response) => {
     });
   } catch (err: unknown) {
     req.log.error({ err }, "Failed to create export");
-    res.status(500).json({ error: (err as Error).message });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -110,16 +111,22 @@ router.post("/exports/download", async (req: Request, res: Response) => {
     return;
   }
 
-  const { courseId, courseName } = req.body as { courseId?: string; courseName?: string };
-  if (!courseId || !courseName) {
-    res.status(400).json({ error: "courseId and courseName are required" });
+  const parsed = CreateExportBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid request body" });
     return;
   }
+  const { courseId, courseName } = parsed.data;
 
   try {
-    const oauth2Client = createOAuth2Client(tokens);
-    const classroom = getClassroomClient(tokens);
-    const drive = getDriveClient(tokens);
+    const onTokens = (newTokens: any) => {
+      req.session.tokens = encryptObject({ ...tokens, ...newTokens }) as any;
+      req.session.save();
+    };
+    
+    const oauth2Client = createOAuth2Client(tokens, onTokens);
+    const classroom = getClassroomClient(tokens, onTokens);
+    const drive = getDriveClient(tokens, onTokens);
 
     const tokenResponse = await oauth2Client.getAccessToken();
     const accessToken = tokenResponse.token;
@@ -177,7 +184,7 @@ router.post("/exports/download", async (req: Request, res: Response) => {
   } catch (err: unknown) {
     req.log.error({ err }, "ZIP download failed");
     if (!res.headersSent) {
-      res.status(500).json({ error: (err as Error).message });
+      res.status(500).json({ error: "Internal server error" });
     }
   }
 });
@@ -229,7 +236,7 @@ router.get("/exports/:id", async (req: Request, res: Response) => {
     });
   } catch (err: unknown) {
     req.log.error({ err }, "Failed to get export");
-    res.status(500).json({ error: (err as Error).message });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -251,7 +258,8 @@ router.get("/exports/:id/logs", async (req: Request, res: Response) => {
       .select()
       .from(exportLogs)
       .where(eq(exportLogs.exportId, parsed.data.id))
-      .orderBy(exportLogs.createdAt);
+      .orderBy(exportLogs.createdAt)
+      .limit(500);
 
     if (logs.length === 0) {
       const [check] = await db
@@ -278,7 +286,7 @@ router.get("/exports/:id/logs", async (req: Request, res: Response) => {
     );
   } catch (err: unknown) {
     req.log.error({ err }, "Failed to get export logs");
-    res.status(500).json({ error: (err as Error).message });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
