@@ -4,6 +4,7 @@ import { z } from "zod/v4";
 
 export const exportJobs = pgTable("export_jobs", {
   id: serial("id").primaryKey(),
+  userEmail: text("user_email"),
   courseId: text("course_id").notNull(),
   courseName: text("course_name").notNull(),
   targetFolderId: text("target_folder_id"),
