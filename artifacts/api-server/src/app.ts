@@ -11,6 +11,17 @@ import { logger } from "./lib/logger";
 import connectPgSimple from "connect-pg-simple";
 import { pool } from "@workspace/db";
 
+// Manually ensure the session table exists because esbuild bundling breaks connect-pg-simple's createTableIfMissing
+pool.query(`
+  CREATE TABLE IF NOT EXISTS "session" (
+    "sid" varchar NOT NULL COLLATE "default",
+    "sess" json NOT NULL,
+    "expire" timestamp(6) NOT NULL,
+    CONSTRAINT "session_pkey" PRIMARY KEY ("sid") NOT DEFERRABLE INITIALLY IMMEDIATE
+  ) WITH (OIDS=FALSE);
+  CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
+`).catch(err => console.error("Failed to create session table:", err));
+
 const app: Express = express();
 app.set("trust proxy", true);
 app.use(helmet());
@@ -55,7 +66,7 @@ const PgStore = connectPgSimple(session);
 
 app.use(
   session({
-    store: new PgStore({ pool, createTableIfMissing: true }),
+    store: new PgStore({ pool, createTableIfMissing: false }),
     secret: sessionSecret,
     resave: false,
     saveUninitialized: false,
