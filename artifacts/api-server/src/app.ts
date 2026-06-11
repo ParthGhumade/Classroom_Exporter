@@ -80,15 +80,15 @@ const distPath = frontendDistCandidates.find((candidate) => existsSync(candidate
 if (distPath) {
   app.use(express.static(distPath, { maxAge: "1d" }));
   
-  app.use("/api/*", (req: Request, res: Response) => {
+  app.use("/api", (req: Request, res: Response) => {
     res.status(404).json({ error: "Not Found" });
   });
 
-  app.use("*", (req: Request, res: Response) => {
+  app.use((req: Request, res: Response) => {
     res.sendFile(path.join(distPath, "index.html"));
   });
 } else {
-  app.use("/api/*", (req: Request, res: Response) => {
+  app.use("/api", (req: Request, res: Response) => {
     res.status(404).json({ error: "Not Found" });
   });
 }
