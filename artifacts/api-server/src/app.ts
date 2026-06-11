@@ -1,11 +1,13 @@
 import express, { type Express } from "express";
-import cors from "cors";
+
 import session from "express-session";
 import pinoHttp from "pino-http";
 import path from "node:path";
 import { existsSync } from "node:fs";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import connectPgSimple from "connect-pg-simple";
+import { pool } from "@workspace/db";
 
 const app: Express = express();
 app.set("trust proxy", 1);
@@ -29,7 +31,7 @@ app.use(
     },
   }),
 );
-app.use(cors({ origin: true, credentials: true }));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -38,8 +40,11 @@ if (!sessionSecret) {
   throw new Error("SESSION_SECRET environment variable is required.");
 }
 
+const PgStore = connectPgSimple(session);
+
 app.use(
   session({
+    store: new PgStore({ pool, createTableIfMissing: true }),
     secret: sessionSecret,
     resave: false,
     saveUninitialized: false,

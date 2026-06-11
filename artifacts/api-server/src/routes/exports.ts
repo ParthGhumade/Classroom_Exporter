@@ -28,6 +28,10 @@ function inferMime(filename: string): string {
 const router = Router();
 
 router.get("/exports", async (req: Request, res: Response) => {
+  if (!req.session.tokens) {
+    res.status(401).json({ error: "Not authenticated" });
+    return;
+  }
   try {
     const jobs = await db
       .select()
@@ -166,6 +170,11 @@ router.post("/exports/download", async (req: Request, res: Response) => {
 });
 
 router.get("/exports/:id", async (req: Request, res: Response) => {
+  if (!req.session.tokens) {
+    res.status(401).json({ error: "Not authenticated" });
+    return;
+  }
+
   const parsed = GetExportParams.safeParse({ id: Number(req.params.id) });
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid export id" });
@@ -206,6 +215,11 @@ router.get("/exports/:id", async (req: Request, res: Response) => {
 });
 
 router.get("/exports/:id/logs", async (req: Request, res: Response) => {
+  if (!req.session.tokens) {
+    res.status(401).json({ error: "Not authenticated" });
+    return;
+  }
+
   const parsed = GetExportLogsParams.safeParse({ id: Number(req.params.id) });
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid export id" });
