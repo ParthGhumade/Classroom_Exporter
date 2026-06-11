@@ -32,8 +32,13 @@ router.get("/auth/url", (req: Request, res: Response) => {
   try {
     const state = crypto.randomBytes(32).toString("hex");
     req.session.oauthState = state;
-    const url = getAuthUrl(state);
-    res.json({ url });
+    req.session.save((err) => {
+      if (err) {
+        return res.status(500).json({ error: "Failed to save session" });
+      }
+      const url = getAuthUrl(state);
+      res.json({ url });
+    });
   } catch (err: unknown) {
     res.status(500).json({ error: (err as Error).message });
   }

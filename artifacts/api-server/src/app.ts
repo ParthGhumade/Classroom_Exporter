@@ -12,7 +12,7 @@ import connectPgSimple from "connect-pg-simple";
 import { pool } from "@workspace/db";
 
 const app: Express = express();
-app.set("trust proxy", 1);
+app.set("trust proxy", true);
 app.use(helmet());
 
 const apiLimiter = rateLimit({
