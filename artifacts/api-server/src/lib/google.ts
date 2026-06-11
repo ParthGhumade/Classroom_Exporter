@@ -8,8 +8,9 @@ const SCOPES = [
   "https://www.googleapis.com/auth/classroom.coursework.me.readonly",
   "https://www.googleapis.com/auth/classroom.courseworkmaterials.readonly",
   "https://www.googleapis.com/auth/classroom.announcements.readonly",
-  // Full Drive access (read + write) to copy files and write to target folder
-  "https://www.googleapis.com/auth/drive",
+  // Read access to read attachments, and File access to write new copies
+  "https://www.googleapis.com/auth/drive.readonly",
+  "https://www.googleapis.com/auth/drive.file",
   "openid",
   "email",
   "profile",
@@ -23,7 +24,7 @@ export function getRedirectUri(): string {
   return "http://localhost:80/api/auth/callback";
 }
 
-export function createOAuth2Client(tokens?: Record<string, unknown>) {
+export function createOAuth2Client(tokens?: Record<string, unknown>, onTokens?: (tokens: any) => void) {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
 
@@ -37,6 +38,10 @@ export function createOAuth2Client(tokens?: Record<string, unknown>) {
 
   if (tokens) {
     client.setCredentials(tokens as Parameters<typeof client.setCredentials>[0]);
+  }
+
+  if (onTokens) {
+    client.on("tokens", onTokens);
   }
 
   return client;
@@ -65,12 +70,12 @@ export async function getUserInfo(tokens: Record<string, unknown>) {
   return data;
 }
 
-export function getClassroomClient(tokens: Record<string, unknown>) {
-  const client = createOAuth2Client(tokens);
+export function getClassroomClient(tokens: Record<string, unknown>, onTokens?: (tokens: any) => void) {
+  const client = createOAuth2Client(tokens, onTokens);
   return google.classroom({ version: "v1", auth: client });
 }
 
-export function getDriveClient(tokens: Record<string, unknown>) {
-  const client = createOAuth2Client(tokens);
+export function getDriveClient(tokens: Record<string, unknown>, onTokens?: (tokens: any) => void) {
+  const client = createOAuth2Client(tokens, onTokens);
   return google.drive({ version: "v3", auth: client });
 }

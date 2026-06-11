@@ -12,7 +12,13 @@ if (!connectionString) {
   );
 }
 
-export const pool = new Pool({ connectionString });
+export const pool = new Pool({
+  connectionString,
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000,
+  ssl: { rejectUnauthorized: false }
+});
 export const db = drizzle(pool, { schema });
 
 export * from "./schema";

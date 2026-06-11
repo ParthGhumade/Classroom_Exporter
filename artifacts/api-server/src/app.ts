@@ -1,9 +1,11 @@
-import express, { type Express } from "express";
+import express, { type Express, type Request, type Response, type NextFunction } from "express";
 
 import session from "express-session";
 import pinoHttp from "pino-http";
 import path from "node:path";
 import { existsSync } from "node:fs";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import router from "./routes";
 import { logger } from "./lib/logger";
 import connectPgSimple from "connect-pg-simple";
@@ -11,6 +13,15 @@ import { pool } from "@workspace/db";
 
 const app: Express = express();
 app.set("trust proxy", 1);
+app.use(helmet());
+
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use(apiLimiter);
 
 app.use(
   pinoHttp({
@@ -32,7 +43,7 @@ app.use(
   }),
 );
 
-app.use(express.json());
+app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true }));
 
 const sessionSecret = process.env.SESSION_SECRET;
@@ -65,13 +76,26 @@ const frontendDistCandidates = [
   path.resolve(process.cwd(), "dist/public"),
 ];
 
-const frontendDist = frontendDistCandidates.find((candidate) => existsSync(candidate));
-if (frontendDist) {
-  app.use(express.static(frontendDist));
+const distPath = frontendDistCandidates.find((candidate) => existsSync(candidate));
+if (distPath) {
+  app.use(express.static(distPath, { maxAge: "1d" }));
+  
+  app.use("/api/*", (req: Request, res: Response) => {
+    res.status(404).json({ error: "Not Found" });
+  });
 
-  app.get(/^\/(?!api\/).*/, (_req, res) => {
-    res.sendFile(path.join(frontendDist, "index.html"));
+  app.use("*", (req: Request, res: Response) => {
+    res.sendFile(path.join(distPath, "index.html"));
+  });
+} else {
+  app.use("/api/*", (req: Request, res: Response) => {
+    res.status(404).json({ error: "Not Found" });
   });
 }
+
+app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
+  req.log.error({ err }, "Unhandled application error");
+  res.status(500).json({ error: "Internal server error" });
+});
 
 export default app;
