@@ -1,7 +1,8 @@
 import archiver from "archiver";
 import { Router } from "express";
 import { db, exportJobs, exportLogs } from "@workspace/db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
+import { decryptObject } from "../lib/crypto";
 import { GetExportParams, GetExportLogsParams, CreateExportBody } from "@workspace/api-zod";
 import { runExport, discoverCourseFiles, GOOGLE_WORKSPACE_EXPORTS, downloadDriveFile } from "../lib/exporter";
 import { createOAuth2Client, getClassroomClient, getDriveClient } from "../lib/google";
@@ -28,7 +29,8 @@ function inferMime(filename: string): string {
 const router = Router();
 
 router.get("/exports", async (req: Request, res: Response) => {
-  if (!req.session.tokens) {
+  const rawTokens = req.session.tokens;
+  if (!rawTokens) {
     res.status(401).json({ error: "Not authenticated" });
     return;
   }
@@ -36,6 +38,7 @@ router.get("/exports", async (req: Request, res: Response) => {
     const jobs = await db
       .select()
       .from(exportJobs)
+      .where(eq(exportJobs.userEmail, req.session.userEmail || ""))
       .orderBy(desc(exportJobs.createdAt));
 
     res.json(
@@ -52,9 +55,14 @@ router.get("/exports", async (req: Request, res: Response) => {
 });
 
 router.post("/exports", async (req: Request, res: Response) => {
-  const tokens = req.session.tokens;
-  if (!tokens) {
+  const rawTokens = req.session.tokens;
+  if (!rawTokens) {
     res.status(401).json({ error: "Not authenticated" });
+    return;
+  }
+  const tokens = typeof rawTokens === "string" ? decryptObject(rawTokens) : rawTokens;
+  if (!tokens) {
+    res.status(401).json({ error: "Invalid session tokens" });
     return;
   }
 
@@ -69,7 +77,7 @@ router.post("/exports", async (req: Request, res: Response) => {
   try {
     const [job] = await db
       .insert(exportJobs)
-      .values({ courseId, courseName, status: "pending" })
+      .values({ courseId, courseName, userEmail: req.session.userEmail || "", status: "pending" })
       .returning();
 
     const tokenSnapshot = { ...tokens };
@@ -91,9 +99,14 @@ router.post("/exports", async (req: Request, res: Response) => {
 });
 
 router.post("/exports/download", async (req: Request, res: Response) => {
-  const tokens = req.session.tokens;
-  if (!tokens) {
+  const rawTokens = req.session.tokens;
+  if (!rawTokens) {
     res.status(401).json({ error: "Not authenticated" });
+    return;
+  }
+  const tokens = typeof rawTokens === "string" ? decryptObject(rawTokens) : rawTokens;
+  if (!tokens) {
+    res.status(401).json({ error: "Invalid session tokens" });
     return;
   }
 
@@ -170,7 +183,8 @@ router.post("/exports/download", async (req: Request, res: Response) => {
 });
 
 router.get("/exports/:id", async (req: Request, res: Response) => {
-  if (!req.session.tokens) {
+  const rawTokens = req.session.tokens;
+  if (!rawTokens) {
     res.status(401).json({ error: "Not authenticated" });
     return;
   }
@@ -185,7 +199,12 @@ router.get("/exports/:id", async (req: Request, res: Response) => {
     const [job] = await db
       .select()
       .from(exportJobs)
-      .where(eq(exportJobs.id, parsed.data.id))
+      .where(
+        and(
+          eq(exportJobs.id, parsed.data.id),
+          eq(exportJobs.userEmail, req.session.userEmail || "")
+        )
+      )
       .limit(1);
 
     if (!job) {
@@ -215,7 +234,8 @@ router.get("/exports/:id", async (req: Request, res: Response) => {
 });
 
 router.get("/exports/:id/logs", async (req: Request, res: Response) => {
-  if (!req.session.tokens) {
+  const rawTokens = req.session.tokens;
+  if (!rawTokens) {
     res.status(401).json({ error: "Not authenticated" });
     return;
   }
@@ -237,7 +257,12 @@ router.get("/exports/:id/logs", async (req: Request, res: Response) => {
       const [check] = await db
         .select()
         .from(exportJobs)
-        .where(eq(exportJobs.id, parsed.data.id))
+        .where(
+          and(
+            eq(exportJobs.id, parsed.data.id),
+            eq(exportJobs.userEmail, req.session.userEmail || "")
+          )
+        )
         .limit(1);
       if (!check) {
         res.status(404).json({ error: "Export not found" });

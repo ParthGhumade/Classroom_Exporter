@@ -2,10 +2,11 @@ import { Router } from "express";
 import crypto from "crypto";
 import { getAuthUrl, exchangeCodeForTokens, getUserInfo } from "../lib/google";
 import type { Request, Response } from "express";
+import { encryptObject } from "../lib/crypto";
 
 declare module "express-session" {
   interface SessionData {
-    tokens?: Record<string, unknown>;
+    tokens?: string | Record<string, unknown>;
     userEmail?: string | null;
     userName?: string | null;
     oauthState?: string;
@@ -59,7 +60,7 @@ router.get("/auth/callback", async (req: Request, res: Response) => {
 
   try {
     const tokens = await exchangeCodeForTokens(code);
-    req.session.tokens = tokens as Record<string, unknown>;
+    req.session.tokens = encryptObject(tokens as Record<string, unknown>);
 
     try {
       const userInfo = await getUserInfo(tokens as Record<string, unknown>);
