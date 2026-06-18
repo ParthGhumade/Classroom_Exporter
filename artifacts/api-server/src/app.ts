@@ -12,18 +12,32 @@ import connectPgSimple from "connect-pg-simple";
 import { pool } from "@workspace/db";
 
 // Manually ensure the session table exists because esbuild bundling breaks connect-pg-simple's createTableIfMissing
-pool.query(`
-  CREATE TABLE IF NOT EXISTS "session" (
-    "sid" varchar NOT NULL COLLATE "default",
-    "sess" json NOT NULL,
-    "expire" timestamp(6) NOT NULL,
-    CONSTRAINT "session_pkey" PRIMARY KEY ("sid") NOT DEFERRABLE INITIALLY IMMEDIATE
-  ) WITH (OIDS=FALSE);
-  CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
-`).catch(err => console.error("Failed to create session table:", err));
+// Retry up to 5 times with exponential backoff to handle cold-start DB connection delays
+async function ensureSessionTable(retries = 5, delayMs = 2000): Promise<void> {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS "session" (
+          "sid" varchar NOT NULL COLLATE "default",
+          "sess" json NOT NULL,
+          "expire" timestamp(6) NOT NULL,
+          CONSTRAINT "session_pkey" PRIMARY KEY ("sid") NOT DEFERRABLE INITIALLY IMMEDIATE
+        ) WITH (OIDS=FALSE);
+        CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
+      `);
+      return;
+    } catch (err) {
+      console.error(`Failed to create session table (attempt ${attempt}/${retries}):`, err);
+      if (attempt < retries) {
+        await new Promise(resolve => setTimeout(resolve, delayMs * attempt));
+      }
+    }
+  }
+}
+ensureSessionTable();
 
 const app: Express = express();
-app.set("trust proxy", true);
+app.set("trust proxy", 1);
 app.use(helmet());
 
 const apiLimiter = rateLimit({
