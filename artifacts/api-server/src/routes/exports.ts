@@ -136,16 +136,33 @@ router.post("/exports/download", async (req: Request, res: Response) => {
     }
 
     const files = await discoverCourseFiles(classroom, courseId);
+    req.log.info({ courseId, fileCount: files.length }, "ZIP download: discovered files");
+
+    if (files.length === 0) {
+      res.status(404).json({ error: "No files found in this course to download" });
+      return;
+    }
 
     const safeFilename = courseName.replace(/[<>:"/\\|?*]/g, "_").trim() || "export";
     res.setHeader("Content-Type", "application/zip");
     res.setHeader("Content-Disposition", `attachment; filename="${safeFilename}.zip"`);
 
+    // Track if the client disconnects mid-stream (e.g. Render SIGTERM / hibernate)
+    let aborted = false;
+    res.on("close", () => { aborted = true; });
+
     const archive = archiver("zip", { zlib: { level: 6 } });
     archive.on("error", (err: Error) => req.log.error({ err }, "Archiver error"));
     archive.pipe(res);
 
+    let addedCount = 0;
     for (const file of files) {
+      if (aborted) {
+        req.log.warn("Client disconnected, aborting ZIP stream");
+        archive.abort();
+        return;
+      }
+
       try {
         let mimeType = inferMime(file.name);
         try {
@@ -174,12 +191,18 @@ router.post("/exports/download", async (req: Request, res: Response) => {
           buffer = await downloadDriveFile(drive, file.id, accessToken);
         }
 
-        archive.append(buffer, { name: entryName });
+        if (buffer.length > 0) {
+          archive.append(buffer, { name: entryName });
+          addedCount++;
+        } else {
+          req.log.warn({ fileId: file.id }, `Skipping empty buffer: ${file.name}`);
+        }
       } catch (err) {
         req.log.warn({ err, fileId: file.id }, `Failed to add ${file.name} to ZIP`);
       }
     }
 
+    req.log.info({ addedCount, totalFiles: files.length }, "ZIP download: finalizing archive");
     await archive.finalize();
   } catch (err: unknown) {
     req.log.error({ err }, "ZIP download failed");

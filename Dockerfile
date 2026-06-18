@@ -29,7 +29,7 @@ RUN pnpm install --prod --frozen-lockfile
 USER node
 EXPOSE 10000
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:10000/api/healthz', (r) => { if (r.statusCode !== 200) process.exit(1) }).on('error', () => process.exit(1))"
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD node -e "const port = process.env.PORT || 3000; require('http').get('http://localhost:' + port + '/api/health', (r) => { if (r.statusCode !== 200) process.exit(1) }).on('error', () => process.exit(1))"
 
 CMD ["node", "artifacts/api-server/dist/index.mjs"]
