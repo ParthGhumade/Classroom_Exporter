@@ -48,9 +48,40 @@ const apiLimiter = rateLimit({
 });
 app.use(apiLimiter);
 
+// Lightweight plain-text logging for health check endpoints to avoid JSON clutter
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const url = req.url?.split("?")[0];
+  const isHealth =
+    url === "/health" ||
+    url === "/healthz" ||
+    url === "/api/health" ||
+    url === "/api/healthz";
+
+  if (isHealth) {
+    const start = process.hrtime();
+    res.on("finish", () => {
+      const diff = process.hrtime(start);
+      const timeMs = Math.round((diff[0] * 1e9 + diff[1]) / 1e6);
+      process.stdout.write(`${req.method} ${url} ${res.statusCode} (${timeMs}ms)\n`);
+    });
+  }
+  next();
+});
+
 app.use(
   pinoHttp({
     logger,
+    autoLogging: {
+      ignore: (req) => {
+        const url = req.url?.split("?")[0];
+        return (
+          url === "/health" ||
+          url === "/healthz" ||
+          url === "/api/health" ||
+          url === "/api/healthz"
+        );
+      },
+    },
     serializers: {
       req(req) {
         return {
