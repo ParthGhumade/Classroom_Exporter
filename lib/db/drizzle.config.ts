@@ -10,10 +10,17 @@ if (!connectionString) {
   );
 }
 
+// Suppress the pg-connection-string v3 deprecation warning during migrations
+const parsedUrl = new URL(connectionString);
+const mode = parsedUrl.searchParams.get("sslmode");
+if (mode && ["require", "prefer", "verify-ca"].includes(mode)) {
+  parsedUrl.searchParams.set("sslmode", "verify-full");
+}
+
 export default defineConfig({
   schema: path.join(__dirname, "./src/schema/index.ts"),
   dialect: "postgresql",
   dbCredentials: {
-    url: connectionString,
+    url: parsedUrl.toString(),
   },
 });
