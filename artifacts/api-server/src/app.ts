@@ -45,8 +45,17 @@ const apiLimiter = rateLimit({
   max: 100,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req: Request): boolean => {
+    const url = req.originalUrl?.split("?")[0];
+    return (
+      url === "/health" ||
+      url === "/healthz" ||
+      url === "/api/health" ||
+      url === "/api/healthz"
+    );
+  },
 });
-app.use(apiLimiter);
+app.use("/api", apiLimiter);
 
 // Lightweight plain-text logging for health check endpoints to avoid JSON clutter
 app.use((req: Request, res: Response, next: NextFunction) => {
