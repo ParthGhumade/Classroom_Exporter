@@ -144,7 +144,28 @@ export default function AuthPage() {
                     Connect with Google
                   </Button>
 
-                  <div className="pt-2 text-center">
+                  <p className="text-[11px] sm:text-xs text-center text-muted-foreground pt-1 leading-relaxed">
+                    By connecting, you agree to our{" "}
+                    <a
+                      href="/terms.html"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline underline-offset-2 hover:text-foreground font-medium"
+                    >
+                      Terms of Service
+                    </a>{" "}
+                    and{" "}
+                    <a
+                      href="/privacy.html"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline underline-offset-2 hover:text-foreground font-medium"
+                    >
+                      Privacy Policy
+                    </a>.
+                  </p>
+
+                  <div className="pt-1 text-center">
                     <button
                       type="button"
                       onClick={() => setDevModalOpen(true)}

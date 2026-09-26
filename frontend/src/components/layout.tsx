@@ -108,7 +108,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 container mx-auto px-5 sm:px-8 md:px-10 lg:px-12 pl-[max(1.25rem,env(safe-area-inset-left))] pr-[max(1.25rem,env(safe-area-inset-right))] py-5 sm:py-8 max-w-6xl pb-[max(6rem,calc(env(safe-area-inset-bottom)+5rem))] md:pb-12">
+      <main className="flex-1 container mx-auto px-5 sm:px-8 md:px-10 lg:px-12 pl-[max(1.25rem,env(safe-area-inset-left))] pr-[max(1.25rem,env(safe-area-inset-right))] py-5 sm:py-8 max-w-6xl pb-8 md:pb-12">
         {children}
       </main>
 
@@ -162,23 +162,34 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       )}
 
       {/* Footer */}
-      <footer className="border-t bg-card/40 mt-auto hidden md:block">
-        <div className="container mx-auto px-4 py-4 flex flex-col sm:flex-row items-center justify-center gap-3 text-xs sm:text-sm text-muted-foreground">
+      <footer
+        className={cn(
+          "border-t bg-card/40 mt-auto",
+          authenticated ? "pb-[max(5.5rem,calc(env(safe-area-inset-bottom)+4.5rem))] md:pb-4" : "pb-4"
+        )}
+      >
+        <div className="container mx-auto px-4 py-4 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3 text-xs sm:text-sm text-muted-foreground text-center">
           <span>© {new Date().getFullYear()} Classroom Exporter</span>
           <span className="hidden sm:inline">·</span>
-          <a
-            href="/privacy.html"
-            className="hover:text-foreground transition-colors underline-offset-4 hover:underline"
-          >
-            Privacy Policy
-          </a>
-          <span className="hidden sm:inline">·</span>
-          <a
-            href="/terms.html"
-            className="hover:text-foreground transition-colors underline-offset-4 hover:underline"
-          >
-            Terms of Service
-          </a>
+          <div className="flex items-center gap-3">
+            <a
+              href="/privacy.html"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-foreground transition-colors underline-offset-4 hover:underline"
+            >
+              Privacy Policy
+            </a>
+            <span>·</span>
+            <a
+              href="/terms.html"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-foreground transition-colors underline-offset-4 hover:underline"
+            >
+              Terms of Service
+            </a>
+          </div>
         </div>
       </footer>
     </div>
