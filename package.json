@@ -3,9 +3,12 @@
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
-    "build": "pnpm run typecheck && pnpm -r --if-present run build",
-    "typecheck:libs": "tsc --build",
-    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
+    "dev": "pnpm --filter classroom-exporter-frontend dev",
+    "build": "pnpm --filter classroom-exporter-frontend build",
+    "build:frontend": "pnpm --filter classroom-exporter-frontend build",
+    "build:all": "pnpm run typecheck && pnpm -r --if-present run build",
+    "typecheck": "pnpm --filter classroom-exporter-frontend typecheck && pnpm run typecheck:libs",
+    "typecheck:libs": "tsc --build"
   },
   "private": true,
   "devDependencies": {
