@@ -174,9 +174,9 @@ export default function ExportsHistoryPage() {
                 </div>
 
                 {job.status === "running" && job.totalFiles ? (
-                  <div className="h-1.5 w-full bg-muted">
+                  <div className="h-1.5 w-full bg-muted/60 relative overflow-hidden">
                     <div
-                      className="h-full bg-primary transition-all duration-300 ease-out"
+                      className="h-full bg-primary transition-all duration-300 ease-out relative overflow-hidden"
                       style={{
                         width: `${Math.max(
                           5,
@@ -185,7 +185,9 @@ export default function ExportsHistoryPage() {
                             100
                         )}%`,
                       }}
-                    />
+                    >
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer" />
+                    </div>
                   </div>
                 ) : null}
               </CardContent>
