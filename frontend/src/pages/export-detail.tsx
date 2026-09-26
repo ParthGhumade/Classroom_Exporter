@@ -21,7 +21,6 @@ import {
   Sparkles,
   Plus,
 } from "lucide-react";
-import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
 export default function ExportDetailPage() {
@@ -163,20 +162,10 @@ export default function ExportDetailPage() {
             <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight truncate text-foreground">
               {job?.courseName || "Export Job"}
             </h1>
-            <div className="text-muted-foreground text-xs flex flex-wrap items-center gap-1.5 sm:gap-2">
-              <span className="font-mono bg-muted/70 px-1.5 py-0.5 rounded text-[11px]">
-                Job #{id}
-              </span>
-              <span>•</span>
-              <Badge variant="outline" className="text-[11px] font-medium py-0 px-2 uppercase tracking-wide">
+            <div className="pt-0.5">
+              <Badge variant="outline" className="text-[11px] font-medium py-0.5 px-2 uppercase tracking-wide">
                 {job?.mode === "drive" ? "Google Drive" : "ZIP Download"}
               </Badge>
-              {job?.createdAt && (
-                <>
-                  <span>•</span>
-                  <span>{format(new Date(job.createdAt), "MMM d, yyyy h:mm a")}</span>
-                </>
-              )}
             </div>
           </div>
 
