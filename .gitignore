@@ -1,6 +1,7 @@
-# See https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
 .env
-artifacts\api-server\.env
+.env.local
+frontend/.env
+frontend/.env.local
 # compiled output
 dist
 tmp
@@ -48,3 +49,7 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Google OAuth Secrets
+client_secret*.json
+*.credentials.json
