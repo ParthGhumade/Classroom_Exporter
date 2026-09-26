@@ -94,9 +94,9 @@ export default function AuthPage() {
                 <Lock className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
               <div>
-                <h3 className="font-semibold text-foreground text-sm sm:text-base">Direct Transfer</h3>
+                <h3 className="font-semibold text-foreground text-sm sm:text-base">Flexible Export</h3>
                 <p className="text-muted-foreground text-xs sm:text-sm mt-0.5 leading-snug">
-                  Direct Google Cloud to browser streaming.
+                  Save as a ZIP file or export to Google Drive.
                 </p>
               </div>
             </div>
