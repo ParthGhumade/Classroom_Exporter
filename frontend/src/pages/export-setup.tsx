@@ -5,7 +5,6 @@ import { useAuth } from "@/lib/auth-context";
 import { createExportJob } from "@/lib/storage";
 import { runDriveExport, runZipDownload } from "@/lib/client-exporter";
 import { discoverCourseFiles, type DriveFileRef } from "@/lib/google-classroom";
-import { isFileSystemAccessSupported } from "@/lib/zip-streamer";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -117,8 +116,6 @@ export default function ExportSetupPage() {
   const deselectAll = () => {
     setSelectedIds(new Set());
   };
-
-  const directDiskStreaming = isFileSystemAccessSupported();
 
   const handleStart = async () => {
     if (!accessToken) return;
@@ -247,47 +244,12 @@ export default function ExportSetupPage() {
                 )}
               </div>
               <p className="text-xs sm:text-sm text-muted-foreground leading-snug">
-                Copies files directly in Google Cloud into an organized Drive folder (zero device RAM).
+                Copies files directly into an organized Google Drive folder.
               </p>
             </div>
           </div>
         </button>
       </div>
-
-      {/* Memory & Engine Notice */}
-      {mode === "zip" && (
-        <div
-          className={cn(
-            "p-3.5 rounded-xl border text-xs sm:text-sm flex items-start gap-2.5",
-            directDiskStreaming
-              ? "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300"
-              : "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300"
-          )}
-        >
-          {directDiskStreaming ? (
-            <>
-              <Sparkles className="w-4 h-4 shrink-0 mt-0.5" />
-              <div>
-                <span className="font-semibold">Direct-to-Disk Streaming Active:</span> When you start
-                the download, your browser will prompt where to save the .zip file. Chunks stream
-                directly to disk with constant O(1) memory (&lt;15 MB RAM).
-              </div>
-            </>
-          ) : (
-            <>
-              <Info className="w-4 h-4 shrink-0 mt-0.5" />
-              <div>
-                <span className="font-semibold">Mobile / WebKit Mode:</span> Please keep this tab active
-                while downloading. For courses with large videos (&gt;100 MB),{" "}
-                <span className="font-semibold underline cursor-pointer" onClick={() => setMode("drive")}>
-                  Export to Drive
-                </span>{" "}
-                is recommended.
-              </div>
-            </>
-          )}
-        </div>
-      )}
 
       {/* File Selection Filter Card */}
       <Card className="border-border/80 shadow-2xs rounded-xl overflow-hidden">
