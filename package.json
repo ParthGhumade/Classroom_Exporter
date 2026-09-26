@@ -6,9 +6,8 @@
     "dev": "pnpm --filter classroom-exporter-frontend dev",
     "build": "pnpm --filter classroom-exporter-frontend build",
     "build:frontend": "pnpm --filter classroom-exporter-frontend build",
-    "build:all": "pnpm run typecheck && pnpm -r --if-present run build",
-    "typecheck": "pnpm --filter classroom-exporter-frontend typecheck && pnpm run typecheck:libs",
-    "typecheck:libs": "tsc --build"
+    "build:all": "pnpm run typecheck && pnpm --filter classroom-exporter-frontend build",
+    "typecheck": "pnpm --filter classroom-exporter-frontend typecheck"
   },
   "private": true,
   "devDependencies": {
