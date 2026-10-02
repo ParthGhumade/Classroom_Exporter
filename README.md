@@ -67,7 +67,7 @@ Classroom-Exporter/
 2. Create an **OAuth 2.0 Client ID** (Web application).
 3. Under **Authorized JavaScript origins**, add:
    - `http://localhost:3000` (for local development)
-   - `https://your-app.vercel.app` (your production Vercel domain)
+   - `https://classroomexporter.online` (your production domain)
 4. Copy your **Client ID**.
 
 ### 3. Setup Frontend

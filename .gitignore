@@ -53,3 +53,7 @@ Thumbs.db
 # Google OAuth Secrets
 client_secret*.json
 *.credentials.json
+
+# /brag output (generated videos, compositions, share copy)
+brag-output/
+brag-output-*/
