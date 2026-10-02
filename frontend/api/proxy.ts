@@ -22,23 +22,35 @@ export default async function handler(request: Request): Promise<Response> {
     });
   }
 
+  const authHeader = request.headers.get("authorization");
+  if (
+    !authHeader ||
+    !authHeader.trim() ||
+    !authHeader.trim().toLowerCase().startsWith("bearer ") ||
+    authHeader.trim().slice(7).trim().length === 0
+  ) {
+    return new Response(
+      JSON.stringify({ error: "Unauthorized: Missing or invalid Authorization header" }),
+      {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
+  }
+
   const url = new URL(request.url);
   const fileId = url.searchParams.get("fileId");
   const exportMime = url.searchParams.get("exportMime");
-  const authHeader = request.headers.get("authorization");
 
-  if (!fileId) {
-    return new Response(JSON.stringify({ error: "Missing required parameter: fileId" }), {
-      status: 400,
-      headers: { "Content-Type": "application/json" },
-    });
-  }
-
-  if (!authHeader) {
-    return new Response(JSON.stringify({ error: "Missing Authorization header" }), {
-      status: 401,
-      headers: { "Content-Type": "application/json" },
-    });
+  const FILE_ID_REGEX = /^[a-zA-Z0-9_-]+$/;
+  if (!fileId || !FILE_ID_REGEX.test(fileId)) {
+    return new Response(
+      JSON.stringify({ error: "Bad Request: Invalid or missing fileId parameter" }),
+      {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
   }
 
   const targetUrl = exportMime
