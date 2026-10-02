@@ -57,3 +57,12 @@ client_secret*.json
 # /brag output (generated videos, compositions, share copy)
 brag-output/
 brag-output-*/
+
+# Security scan artifacts
+results.csv
+config.yaml
+.antigravitycli/
+brag-output*/
+*.pdf
+audits/
+.env*
