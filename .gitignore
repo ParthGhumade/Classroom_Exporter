@@ -66,3 +66,5 @@ brag-output*/
 *.pdf
 audits/
 .env*
+semgrep-*.json
+
