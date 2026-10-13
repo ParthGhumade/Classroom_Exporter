@@ -237,20 +237,20 @@ export default function ExportDetailPage() {
               <div>
                 <h2 className="text-base sm:text-lg font-semibold text-foreground">
                   {isRunning
-                    ? "Opening Course Files in Browser..."
+                    ? "Downloading Course Files to Device..."
                     : isCompleted
-                    ? "Export Completed"
+                    ? "Download Completed"
                     : isFailed
-                    ? "Export Stopped"
-                    : "Preparing Export..."}
+                    ? "Download Stopped"
+                    : "Preparing Download..."}
                 </h2>
                 <p className="text-xs sm:text-sm text-muted-foreground">
                   {isRunning
-                    ? "Opening course files in new tabs. Click the Download icon in each tab to save them."
+                    ? "Saving course files directly to your device via browser download."
                     : isCompleted
-                    ? "All selected files have been opened in your browser."
+                    ? "All selected files have been downloaded to your computer."
                     : isFailed
-                    ? "Export was paused or encountered an issue. You can retry anytime."
+                    ? "Download was paused or encountered an issue. You can retry anytime."
                     : "Connecting to Google Classroom..."}
                 </p>
               </div>

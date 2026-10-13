@@ -179,19 +179,19 @@ export default function ExportSetupPage() {
       <div className="rounded-xl border-2 border-primary/20 bg-primary/5 p-4 sm:p-5 shadow-2xs">
         <div className="flex items-start gap-3 sm:gap-4">
           <div className="rounded-lg p-2.5 bg-primary/10 text-primary shrink-0">
-            <ExternalLink className="w-5 h-5" />
+            <Download className="w-5 h-5" />
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <h2 className="font-semibold text-sm sm:text-base text-foreground leading-tight">
-                Export to Browser
+                Direct Browser Download
               </h2>
               <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/20 font-medium">
-                Google Drive Viewer
+                Local Device
               </Badge>
             </div>
             <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
-              Files will open in new browser tabs sequentially (with a 1.5-second interval). Click the Download icon in the top right of each tab to save them. Uses your active Google session with full multi-account support.
+              Files download individually to your device's download folder in sequence (with a 1.5-second interval between files). Downloads preserve your active Google account session with automated virus-scan bypass.
             </p>
           </div>
         </div>
@@ -337,35 +337,30 @@ export default function ExportSetupPage() {
             </div>
           )}
 
-          {/* Action CTA Button & Helper Text */}
-          <div className="space-y-2">
-            <Button
-              size="lg"
-              className="w-full h-11 sm:h-12 text-sm sm:text-base font-semibold shadow-xs active:scale-[0.98] transition-all touch-manipulation cursor-pointer"
-              disabled={isStarting || filesLoading || selectedIds.size === 0}
-              onClick={handleStart}
-            >
-              {isStarting ? (
-                <>
-                  <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 mr-2 animate-spin" />
-                  Opening Tabs…
-                </>
-              ) : popupBlocked ? (
-                <>
-                  <ExternalLink className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-                  Retry Export ({selectedIds.size} {selectedIds.size === 1 ? "File" : "Files"})
-                </>
-              ) : (
-                <>
-                  <ExternalLink className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-                  Export {selectedIds.size} {selectedIds.size === 1 ? "File" : "Files"} to Browser
-                </>
-              )}
-            </Button>
-            <p className="text-center text-xs text-muted-foreground leading-normal px-2">
-              Files will open in new tabs. Click the Download icon in the top right of each tab to save them.
-            </p>
-          </div>
+          {/* Action CTA Button */}
+          <Button
+            size="lg"
+            className="w-full h-11 sm:h-12 text-sm sm:text-base font-semibold shadow-xs active:scale-[0.98] transition-all touch-manipulation cursor-pointer"
+            disabled={isStarting || filesLoading || selectedIds.size === 0}
+            onClick={handleStart}
+          >
+            {isStarting ? (
+              <>
+                <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 mr-2 animate-spin" />
+                Starting Download…
+              </>
+            ) : popupBlocked ? (
+              <>
+                <Download className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
+                Retry Download ({selectedIds.size} {selectedIds.size === 1 ? "File" : "Files"})
+              </>
+            ) : (
+              <>
+                <Download className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
+                Download {selectedIds.size} {selectedIds.size === 1 ? "File" : "Files"}
+              </>
+            )}
+          </Button>
         </CardContent>
       </Card>
     </div>

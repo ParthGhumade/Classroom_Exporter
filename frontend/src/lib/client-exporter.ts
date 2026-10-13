@@ -19,27 +19,33 @@ export interface BatchDownloadItem {
 export const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * Resolves the Google Drive preview/export URL.
- * Wraps the base file URL with Google's official AccountChooser endpoint if userEmail is provided,
- * forcing the browser to use the logged-in email session and avoiding 403 Forbidden errors.
+ * Extracts the account index from alternateLink (defaulting to '0').
+ */
+export function extractAuthIndex(alternateLink?: string | null): string {
+  let authIndex = "0";
+  if (alternateLink) {
+    const match = alternateLink.match(/authuser=(\d+)/);
+    if (match && match[1]) {
+      authIndex = match[1];
+    }
+  }
+  return authIndex;
+}
+
+/**
+ * Constructs the direct CDN download URL targeting drive.usercontent.google.com.
+ * Directly preserves the /u/{index}/ path without redirecting and includes &confirm=t
+ * to automatically bypass virus-scan warning pages for files over 100MB.
+ * Format: https://drive.usercontent.google.com/u/{authIndex}/uc?id={fileId}&export=download&confirm=t
  */
 export function getGoogleDriveDownloadUrl(
   fileId: string,
-  alternateLink?: string | null,
-  userEmail?: string | null
+  alternateLink?: string | null
 ): string {
-  const baseFileUrl =
-    alternateLink && alternateLink.startsWith("http")
-      ? alternateLink
-      : `https://drive.google.com/file/d/${encodeURIComponent(fileId)}/view`;
-
-  if (userEmail && userEmail.trim() !== "") {
-    return `https://accounts.google.com/AccountChooser?Email=${encodeURIComponent(
-      userEmail.trim()
-    )}&continue=${encodeURIComponent(baseFileUrl)}`;
-  }
-
-  return baseFileUrl;
+  const authIndex = extractAuthIndex(alternateLink);
+  return `https://drive.usercontent.google.com/u/${authIndex}/uc?id=${encodeURIComponent(
+    fileId
+  )}&export=download&confirm=t`;
 }
 
 /**
@@ -52,39 +58,37 @@ export interface DownloadTriggerResult {
 }
 
 /**
- * Opens a Google Drive file preview/download tab via window.open(targetUrl, '_blank').
- * Wraps with Google's official AccountChooser to force the browser to use the logged-in email session.
- * Detects browser popup blocker interference.
+ * Opens a direct CDN download tab via window.open(downloadUrl, '_blank').
+ * Detects popup blocker interference and cleans up (closes) the blank download tab after 3 seconds.
  */
 export function triggerBrowserDownload(
   fileId: string,
   fileName?: string,
-  alternateLink?: string | null,
-  userEmail?: string | null
+  alternateLink?: string | null
 ): DownloadTriggerResult {
   if (typeof window === "undefined") {
     return { success: false, popupBlocked: false, windowRef: null };
   }
 
-  const baseFileUrl =
-    alternateLink && alternateLink.startsWith("http")
-      ? alternateLink
-      : `https://drive.google.com/file/d/${encodeURIComponent(fileId)}/view`;
-
-  // Wrap with Google's official AccountChooser to force the browser to use the logged-in email session
-  const targetUrl =
-    userEmail && userEmail.trim() !== ""
-      ? `https://accounts.google.com/AccountChooser?Email=${encodeURIComponent(
-          userEmail.trim()
-        )}&continue=${encodeURIComponent(baseFileUrl)}`
-      : baseFileUrl;
+  const downloadUrl = getGoogleDriveDownloadUrl(fileId, alternateLink);
 
   try {
-    const newWindow = window.open(targetUrl, "_blank");
+    const newWindow = window.open(downloadUrl, "_blank");
 
     if (!newWindow || newWindow.closed || typeof newWindow.closed === "undefined") {
       // POPUP BLOCKED!
       return { success: false, popupBlocked: true, windowRef: null };
+    } else {
+      // Fallback to close the blank tab after the download triggers
+      setTimeout(() => {
+        try {
+          if (newWindow && !newWindow.closed) {
+            newWindow.close();
+          }
+        } catch {
+          // Ignore cross-origin frame access errors
+        }
+      }, 3000);
     }
 
     return { success: true, popupBlocked: false, windowRef: newWindow };
@@ -108,8 +112,8 @@ export interface BatchDownloadResult {
 }
 
 /**
- * Sequentially opens Google Drive preview tabs using window.open with a 1500ms delay.
- * Passes the targetUrl wrapped with Google AccountChooser for the user's logged-in email.
+ * Sequentially triggers auto-downloads using window.open with a 1500ms delay.
+ * Directly targets drive.usercontent.google.com with auto-close tab cleanup.
  * Detects popup blocker interference and immediately pauses the loop.
  */
 export async function batchDownloadFiles(
@@ -123,7 +127,6 @@ export async function batchDownloadFiles(
       : optionsOrDelayMs;
 
   const delayMs = options.delayMs ?? 1500;
-  const userEmail = options.userEmail;
   const onProgress = options.onProgress;
   const onPopupBlocked = options.onPopupBlocked;
 
@@ -131,8 +134,7 @@ export async function batchDownloadFiles(
 
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
-    const targetUrl = file.alternateLink;
-    const result = triggerBrowserDownload(file.id, file.name, targetUrl, userEmail);
+    const result = triggerBrowserDownload(file.id, file.name, file.alternateLink);
 
     if (result.popupBlocked) {
       if (onPopupBlocked) {

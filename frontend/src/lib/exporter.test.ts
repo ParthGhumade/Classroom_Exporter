@@ -28,49 +28,48 @@ describe("Browser Bypass, Multi-Account Routing & Iframe Download Unit Tests", (
     expect(extractAuthUser(undefined)).toBe("0");
   });
 
-  it("uses alternateLink directly when available or falls back to view URL, and wraps with AccountChooser when userEmail is provided", () => {
+  it("constructs direct CDN download URLs targeting drive.usercontent.google.com with &confirm=t", () => {
     const fileId = "1a2B3c4D5e6F";
-    const directAlternateLink = "https://drive.google.com/file/d/XYZ123/view?authuser=1";
+    const alternateLinkWithAuth = "https://drive.google.com/file/d/XYZ123/view?authuser=1";
+    const alternateLinkWithAuth2 = "https://drive.google.com/file/d/XYZ123/view?authuser=2";
 
-    // Without userEmail
-    expect(getGoogleDriveDownloadUrl(fileId, directAlternateLink)).toBe(directAlternateLink);
+    // With alternateLink containing authuser=1
+    expect(getGoogleDriveDownloadUrl(fileId, alternateLinkWithAuth)).toBe(
+      `https://drive.usercontent.google.com/u/1/uc?id=${fileId}&export=download&confirm=t`
+    );
+
+    // With alternateLink containing authuser=2
+    expect(getGoogleDriveDownloadUrl(fileId, alternateLinkWithAuth2)).toBe(
+      `https://drive.usercontent.google.com/u/2/uc?id=${fileId}&export=download&confirm=t`
+    );
+
+    // Without alternateLink (defaults to authIndex 0)
     expect(getGoogleDriveDownloadUrl(fileId, null)).toBe(
-      `https://drive.google.com/file/d/${fileId}/view`
-    );
-
-    // With userEmail - wrapped with AccountChooser
-    const userEmail = "student@school.edu";
-    expect(getGoogleDriveDownloadUrl(fileId, directAlternateLink, userEmail)).toBe(
-      `https://accounts.google.com/AccountChooser?Email=${encodeURIComponent(
-        userEmail
-      )}&continue=${encodeURIComponent(directAlternateLink)}`
-    );
-
-    const fallbackUrl = `https://drive.google.com/file/d/${fileId}/view`;
-    expect(getGoogleDriveDownloadUrl(fileId, null, userEmail)).toBe(
-      `https://accounts.google.com/AccountChooser?Email=${encodeURIComponent(
-        userEmail
-      )}&continue=${encodeURIComponent(fallbackUrl)}`
+      `https://drive.usercontent.google.com/u/0/uc?id=${fileId}&export=download&confirm=t`
     );
   });
 
-  it("triggers download using window.open with AccountChooser wrapping and detects successful popup", () => {
+  it("triggers download using window.open and schedules tab close after 3 seconds", () => {
     const fileId = "test-doc-456";
-    const directAlternateLink = "https://drive.google.com/file/d/test-doc-456/view?authuser=1";
-    const userEmail = "student@school.edu";
-    const fakeWindow = { closed: false } as Window;
+    const alternateLink = "https://drive.google.com/file/d/test-doc-456/view?authuser=1";
+    const fakeWindow = { closed: false, close: vi.fn() } as unknown as Window;
     const openSpy = vi.spyOn(window, "open").mockReturnValue(fakeWindow);
 
-    const result = triggerBrowserDownload(fileId, "Test.pdf", directAlternateLink, userEmail);
+    const result = triggerBrowserDownload(fileId, "Test.pdf", alternateLink);
 
-    const expectedUrl = `https://accounts.google.com/AccountChooser?Email=${encodeURIComponent(
-      userEmail
-    )}&continue=${encodeURIComponent(directAlternateLink)}`;
+    const expectedUrl = `https://drive.usercontent.google.com/u/1/uc?id=${fileId}&export=download&confirm=t`;
 
     expect(openSpy).toHaveBeenCalledWith(expectedUrl, "_blank");
     expect(result.success).toBe(true);
     expect(result.popupBlocked).toBe(false);
     expect(result.windowRef).toBe(fakeWindow);
+
+    // Verify window.close is not called immediately
+    expect(fakeWindow.close).not.toHaveBeenCalled();
+
+    // Advance 3 seconds
+    vi.advanceTimersByTime(3000);
+    expect(fakeWindow.close).toHaveBeenCalledTimes(1);
   });
 
   it("detects popup blocker when window.open returns null or closed", () => {
