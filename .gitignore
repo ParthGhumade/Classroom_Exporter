@@ -68,3 +68,4 @@ audits/
 .env*
 semgrep-*.json
 
+.vercel
