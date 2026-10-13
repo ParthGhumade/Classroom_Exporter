@@ -32,56 +32,107 @@ export function getGoogleDriveDownloadUrl(fileId: string, authUser?: string | nu
 }
 
 /**
- * Triggers a file download via an invisible iframe appended to document.body.
- * Invisible iframes bypass browser popup blockers that terminate programmatic a.click() chains.
- * Automatically removes the iframe from the DOM after 10 seconds to prevent memory leaks.
+ * Result of attempting to trigger a browser download via window.open.
+ */
+export interface DownloadTriggerResult {
+  success: boolean;
+  popupBlocked: boolean;
+  windowRef: Window | null;
+}
+
+/**
+ * Triggers a file download via window.open(url, '_blank').
+ * Detects whether the browser's popup blocker stopped the window from opening.
  */
 export function triggerBrowserDownload(
   fileId: string,
   fileName?: string,
   authUser?: string | null
-): HTMLIFrameElement | null {
-  if (typeof document === "undefined") return null;
+): DownloadTriggerResult {
+  if (typeof window === "undefined") {
+    return { success: false, popupBlocked: false, windowRef: null };
+  }
 
   const url = getGoogleDriveDownloadUrl(fileId, authUser);
-  const iframe = document.createElement("iframe");
-  iframe.style.display = "none";
-  iframe.src = url;
-  iframe.setAttribute("aria-hidden", "true");
-  iframe.tabIndex = -1;
+  try {
+    const newWindow = window.open(url, "_blank");
 
-  document.body.appendChild(iframe);
-
-  // Remove the iframe after 10 seconds to prevent memory leaks
-  setTimeout(() => {
-    if (iframe.parentNode) {
-      iframe.parentNode.removeChild(iframe);
+    if (!newWindow || newWindow.closed || typeof newWindow.closed === "undefined") {
+      // POPUP BLOCKED!
+      return { success: false, popupBlocked: true, windowRef: null };
     }
-  }, 10000);
 
-  return iframe;
+    return { success: true, popupBlocked: false, windowRef: newWindow };
+  } catch {
+    return { success: false, popupBlocked: true, windowRef: null };
+  }
+}
+
+export interface BatchDownloadOptions {
+  delayMs?: number;
+  onProgress?: (index: number, file: BatchDownloadItem) => Promise<void> | void;
+  onPopupBlocked?: (index: number, file: BatchDownloadItem) => Promise<void> | void;
+}
+
+export interface BatchDownloadResult {
+  completed: number;
+  total: number;
+  popupBlocked: boolean;
+  blockedIndex?: number;
 }
 
 /**
- * Sequentially triggers browser downloads with a delay (default 1000ms)
- * between each file to prevent the browser from throttling network requests.
+ * Sequentially triggers browser downloads using window.open with a 1500ms delay.
+ * Detects popup blocker interference and immediately breaks the loop so downloads pause.
  */
 export async function batchDownloadFiles(
   files: BatchDownloadItem[],
-  delayMs = 1000,
-  onProgress?: (index: number, file: BatchDownloadItem) => Promise<void> | void
-): Promise<void> {
+  optionsOrDelayMs: number | BatchDownloadOptions = 1500,
+  onProgressLegacy?: (index: number, file: BatchDownloadItem) => Promise<void> | void
+): Promise<BatchDownloadResult> {
+  const options: BatchDownloadOptions =
+    typeof optionsOrDelayMs === "number"
+      ? { delayMs: optionsOrDelayMs, onProgress: onProgressLegacy }
+      : optionsOrDelayMs;
+
+  const delayMs = options.delayMs ?? 1500;
+  const onProgress = options.onProgress;
+  const onPopupBlocked = options.onPopupBlocked;
+
+  let completed = 0;
+
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
     const authUser = file.authUser || extractAuthUser(file.alternateLink);
-    triggerBrowserDownload(file.id, file.name, authUser);
+    const result = triggerBrowserDownload(file.id, file.name, authUser);
+
+    if (result.popupBlocked) {
+      if (onPopupBlocked) {
+        await onPopupBlocked(i, file);
+      }
+      return {
+        completed,
+        total: files.length,
+        popupBlocked: true,
+        blockedIndex: i,
+      };
+    }
+
+    completed++;
     if (onProgress) {
       await onProgress(i, file);
     }
+
     if (i < files.length - 1) {
       await delay(delayMs);
     }
   }
+
+  return {
+    completed,
+    total: files.length,
+    popupBlocked: false,
+  };
 }
 
 /**
@@ -95,8 +146,9 @@ export async function runDirectDownload(
   courseName: string,
   accessToken: string,
   onProgress?: ProgressCallback,
-  selectedFileIds?: string[]
-): Promise<void> {
+  selectedFileIds?: string[],
+  onPopupBlocked?: () => void
+): Promise<BatchDownloadResult> {
   const notify = async (fields: Partial<ExportJob>) => {
     await updateExportJob(jobId, fields);
     if (onProgress) {
@@ -129,20 +181,21 @@ export async function runDirectDownload(
     if (total === 0) {
       await addExportLog(jobId, "warning", "No downloadable Drive files selected for this course.");
       await notify({ status: "completed" });
-      return;
+      return { completed: 0, total: 0, popupBlocked: false };
     }
 
     await addExportLog(
       jobId,
       "info",
-      `Discovered ${total} files. Starting sequential browser download (1s delay between files)...`
+      `Discovered ${total} files. Starting sequential browser download (1500ms delay between files)...`
     );
 
     let downloaded = 0;
     let failed = 0;
 
-    await batchDownloadFiles(files, 1000, async (index, file) => {
-      try {
+    const result = await batchDownloadFiles(files, {
+      delayMs: 1500,
+      onProgress: async (index, file) => {
         downloaded++;
         await notify({ copiedFiles: downloaded, failedFiles: failed });
         await addExportLog(
@@ -155,17 +208,32 @@ export async function runDirectDownload(
             sourceName: file.sourceName,
           }
         );
-      } catch (err: any) {
-        failed++;
-        await notify({ copiedFiles: downloaded, failedFiles: failed });
+      },
+      onPopupBlocked: async (index, file) => {
         await addExportLog(
           jobId,
           "error",
-          `Failed to trigger download for "${file.name || file.id}": ${err.message || String(err)}`,
-          { fileId: file.id, fileName: file.name, sourceName: file.sourceName }
+          `⚠️ Downloads Paused: Browser popup blocker blocked window.open for "${file.name || file.id}" at file ${index + 1}/${total}.`,
+          {
+            fileId: file.id,
+            fileName: file.name,
+            sourceName: file.sourceName,
+          }
         );
-      }
+        if (onPopupBlocked) {
+          onPopupBlocked();
+        }
+      },
     });
+
+    if (result.popupBlocked) {
+      await notify({
+        status: "failed",
+        copiedFiles: downloaded,
+        failedFiles: failed,
+      });
+      return result;
+    }
 
     await notify({
       status: "completed",
@@ -177,6 +245,7 @@ export async function runDirectDownload(
       "success",
       `Batch download complete! Triggered ${downloaded} downloads to your local device.`
     );
+    return result;
   } catch (err: any) {
     await notify({ status: "failed" });
     await addExportLog(
@@ -184,6 +253,7 @@ export async function runDirectDownload(
       "error",
       `Export encountered an error: ${err.message || String(err)}`
     );
+    return { completed: 0, total: 0, popupBlocked: false };
   } finally {
     if (wakeLock) {
       wakeLock.release().catch(() => {});

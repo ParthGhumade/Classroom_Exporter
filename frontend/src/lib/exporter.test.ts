@@ -50,26 +50,34 @@ describe("Browser Bypass, Multi-Account Routing & Iframe Download Unit Tests", (
     );
   });
 
-  it("triggers download using an invisible iframe and removes it after 10 seconds", () => {
+  it("triggers download using window.open and detects successful popup", () => {
     const fileId = "test-doc-456";
-    const iframe = triggerBrowserDownload(fileId, "Test.pdf", "1");
+    const fakeWindow = { closed: false } as Window;
+    const openSpy = vi.spyOn(window, "open").mockReturnValue(fakeWindow);
 
-    expect(iframe).not.toBeNull();
-    expect(iframe?.style.display).toBe("none");
-    expect(iframe?.src).toBe(`https://drive.google.com/uc?export=download&id=${fileId}&authuser=1`);
-    expect(document.body.contains(iframe)).toBe(true);
+    const result = triggerBrowserDownload(fileId, "Test.pdf", "1");
 
-    // Advance timers by 9 seconds - iframe still in DOM
-    vi.advanceTimersByTime(9000);
-    expect(document.body.contains(iframe)).toBe(true);
-
-    // Advance past 10 seconds - iframe should be removed from DOM
-    vi.advanceTimersByTime(1001);
-    expect(document.body.contains(iframe)).toBe(false);
+    expect(openSpy).toHaveBeenCalledWith(
+      `https://drive.google.com/uc?export=download&id=${fileId}&authuser=1`,
+      "_blank"
+    );
+    expect(result.success).toBe(true);
+    expect(result.popupBlocked).toBe(false);
+    expect(result.windowRef).toBe(fakeWindow);
   });
 
-  it("sequences batch downloads with delay and attaches authuser to each file", async () => {
-    vi.useRealTimers(); // Use real timers for the async generator loop test
+  it("detects popup blocker when window.open returns null or closed", () => {
+    const fileId = "blocked-doc";
+    vi.spyOn(window, "open").mockReturnValue(null);
+
+    const result = triggerBrowserDownload(fileId, "Blocked.pdf");
+    expect(result.success).toBe(false);
+    expect(result.popupBlocked).toBe(true);
+    expect(result.windowRef).toBeNull();
+  });
+
+  it("breaks the batch loop and pauses downloads when popup is blocked", async () => {
+    vi.useRealTimers();
 
     const items: BatchDownloadItem[] = [
       { id: "file-1", name: "Doc1.pdf", authUser: "1" },
@@ -77,17 +85,35 @@ describe("Browser Bypass, Multi-Account Routing & Iframe Download Unit Tests", (
       { id: "file-3", name: "Doc3.pdf" },
     ];
 
-    const progressCalls: number[] = [];
-    await batchDownloadFiles(items, 10, async (index) => {
-      progressCalls.push(index);
+    let callCount = 0;
+    vi.spyOn(window, "open").mockImplementation(() => {
+      callCount++;
+      if (callCount === 2) {
+        // Second call blocked by browser popup blocker!
+        return null;
+      }
+      return { closed: false } as Window;
     });
 
-    const iframes = document.querySelectorAll("iframe");
-    expect(iframes.length).toBe(3);
-    expect(iframes[0].src).toContain("id=file-1&authuser=1");
-    expect(iframes[1].src).toContain("id=file-2&authuser=2");
-    expect(iframes[2].src).toContain("id=file-3");
-    expect(iframes[2].src).not.toContain("authuser=");
-    expect(progressCalls).toEqual([0, 1, 2]);
+    const progressCalls: number[] = [];
+    let blockedNotified = false;
+
+    const result = await batchDownloadFiles(items, {
+      delayMs: 5,
+      onProgress: async (index) => {
+        progressCalls.push(index);
+      },
+      onPopupBlocked: async (index) => {
+        blockedNotified = true;
+        expect(index).toBe(1);
+      },
+    });
+
+    expect(result.popupBlocked).toBe(true);
+    expect(result.completed).toBe(1); // Only first file succeeded
+    expect(result.blockedIndex).toBe(1);
+    expect(progressCalls).toEqual([0]);
+    expect(blockedNotified).toBe(true);
+    expect(callCount).toBe(2); // Broke loop immediately, did not attempt file 3
   });
 });

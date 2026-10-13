@@ -101,6 +101,14 @@ export default function ExportDetailPage() {
     return null;
   }, [isRunning, job?.logs]);
 
+  // Check if export stopped due to popup blocker
+  const popupBlocked = useMemo(() => {
+    if (!job?.logs) return false;
+    return job.logs.some((l) =>
+      l.message.includes("Downloads Paused: Browser popup blocker blocked window.open")
+    );
+  }, [job?.logs]);
+
   // Collect skipped or failed files for simple notice if needed
   const issueFiles = useMemo(() => {
     if (!job?.logs) return [];
@@ -329,8 +337,36 @@ export default function ExportDetailPage() {
             </div>
           </div>
 
-          {/* Fallback Popup Blocker Warning */}
-          {isRunning && (
+          {/* Popup Blocker Alert / Warning */}
+          {popupBlocked && (
+            <div className="rounded-xl bg-amber-500/15 border-2 border-amber-500/40 text-amber-900 dark:text-amber-100 text-xs sm:text-sm p-4 sm:p-5 flex items-start gap-3.5 shadow-sm animate-in fade-in duration-200">
+              <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <div className="space-y-2 flex-1">
+                <p className="font-semibold text-sm sm:text-base leading-snug">
+                  ⚠️ Downloads Paused: Your browser's popup blocker stopped the batch export.
+                </p>
+                <p className="leading-relaxed opacity-95 text-xs sm:text-sm">
+                  To download your files, click the popup-blocker icon in your browser's address bar (usually a small window with a red 'X' on the right side), select 'Always allow pop-ups from this site', and click Export again.
+                </p>
+                <div className="pt-1">
+                  <Button
+                    size="sm"
+                    className="h-8 text-xs font-semibold gap-1.5 cursor-pointer shadow-xs"
+                    onClick={() => {
+                      if (job?.courseId) {
+                        setLocation(`/export?courseId=${encodeURIComponent(job.courseId)}&courseName=${encodeURIComponent(job.courseName)}`);
+                      }
+                    }}
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Click Export Again</span>
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {isRunning && !popupBlocked && (
             <div className="rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-200 text-xs sm:text-sm p-3.5 flex items-start gap-2.5 animate-in fade-in duration-200">
               <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
               <span className="leading-snug">

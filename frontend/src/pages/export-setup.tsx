@@ -34,6 +34,7 @@ export default function ExportSetupPage() {
 
   const { authenticated, accessToken, user, isLoading: authLoading } = useAuth();
   const [isStarting, setIsStarting] = useState(false);
+  const [popupBlocked, setPopupBlocked] = useState(false);
   const [showWarning, setShowWarning] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -301,7 +302,19 @@ export default function ExportSetupPage() {
             </div>
           )}
 
-          {showWarning && (
+          {popupBlocked && (
+            <div className="rounded-xl bg-amber-500/15 border-2 border-amber-500/40 text-amber-900 dark:text-amber-100 text-xs sm:text-sm p-4 flex items-start gap-3 shadow-sm animate-in fade-in duration-200">
+              <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="font-semibold text-sm leading-snug">⚠️ Downloads Paused: Your browser's popup blocker stopped the batch export.</p>
+                <p className="leading-relaxed opacity-95">
+                  To download your files, click the popup-blocker icon in your browser's address bar (usually a small window with a red 'X' on the right side), select 'Always allow pop-ups from this site', and click Export again.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {showWarning && !popupBlocked && (
             <div className="rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-200 text-xs sm:text-sm p-3.5 flex items-start gap-2.5 animate-in fade-in duration-200">
               <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
               <span className="leading-snug">
@@ -327,6 +340,11 @@ export default function ExportSetupPage() {
               <>
                 <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 mr-2 animate-spin" />
                 Starting Download…
+              </>
+            ) : popupBlocked ? (
+              <>
+                <Download className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
+                Retry Export ({selectedIds.size} {selectedIds.size === 1 ? "File" : "Files"})
               </>
             ) : (
               <>
