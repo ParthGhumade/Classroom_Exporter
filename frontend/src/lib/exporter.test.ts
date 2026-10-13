@@ -28,39 +28,25 @@ describe("Browser Bypass, Multi-Account Routing & Iframe Download Unit Tests", (
     expect(extractAuthUser(undefined)).toBe("0");
   });
 
-  it("constructs native download URLs with path-based authIndex (/u/{index}/)", () => {
+  it("uses alternateLink directly when available or falls back to view URL", () => {
     const fileId = "1a2B3c4D5e6F";
-    // Without authUser defaults to 0
-    expect(getGoogleDriveDownloadUrl(fileId)).toBe(
-      `https://drive.google.com/u/0/uc?export=download&id=${fileId}`
-    );
-    expect(getGoogleDriveDownloadUrl(fileId, null)).toBe(
-      `https://drive.google.com/u/0/uc?export=download&id=${fileId}`
-    );
-    expect(getGoogleDriveDownloadUrl(fileId, "")).toBe(
-      `https://drive.google.com/u/0/uc?export=download&id=${fileId}`
-    );
+    const directAlternateLink = "https://drive.google.com/file/d/XYZ123/view?authuser=1";
 
-    // With authUser
-    expect(getGoogleDriveDownloadUrl(fileId, "1")).toBe(
-      `https://drive.google.com/u/1/uc?export=download&id=${fileId}`
-    );
-    expect(getGoogleDriveDownloadUrl(fileId, "2")).toBe(
-      `https://drive.google.com/u/2/uc?export=download&id=${fileId}`
+    expect(getGoogleDriveDownloadUrl(fileId, directAlternateLink)).toBe(directAlternateLink);
+    expect(getGoogleDriveDownloadUrl(fileId, null)).toBe(
+      `https://drive.google.com/file/d/${fileId}/view`
     );
   });
 
-  it("triggers download using window.open and detects successful popup", () => {
+  it("triggers download using window.open with alternateLink directly and detects successful popup", () => {
     const fileId = "test-doc-456";
+    const directAlternateLink = "https://drive.google.com/file/d/test-doc-456/view?authuser=1";
     const fakeWindow = { closed: false } as Window;
     const openSpy = vi.spyOn(window, "open").mockReturnValue(fakeWindow);
 
-    const result = triggerBrowserDownload(fileId, "Test.pdf", "1");
+    const result = triggerBrowserDownload(fileId, "Test.pdf", directAlternateLink);
 
-    expect(openSpy).toHaveBeenCalledWith(
-      `https://drive.google.com/u/1/uc?export=download&id=${fileId}`,
-      "_blank"
-    );
+    expect(openSpy).toHaveBeenCalledWith(directAlternateLink, "_blank");
     expect(result.success).toBe(true);
     expect(result.popupBlocked).toBe(false);
     expect(result.windowRef).toBe(fakeWindow);

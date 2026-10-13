@@ -19,22 +19,23 @@ export interface BatchDownloadItem {
 export const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * Constructs the native Google Drive direct download URL using the path-based format.
- * Format: https://drive.google.com/u/{authIndex}/uc?export=download&id={fileId}
- * Placing authIndex directly into the URL path (/u/{authIndex}/) prevents Google Drive
- * internal redirects from stripping authuser and defaulting to account 0 (403 Forbidden).
+ * Resolves the Google Drive preview URL.
+ * Prefers the official API alternateLink directly, which preserves the user's
+ * session routing (including ?authuser=X) seamlessly.
+ * Falls back to standard drive view if alternateLink is absent.
  */
-export function getGoogleDriveDownloadUrl(fileId: string, authUser?: string | null): string {
-  let authIndex = "0";
-  if (authUser !== undefined && authUser !== null && authUser.trim() !== "") {
-    const match = authUser.trim().match(/\d+/);
-    authIndex = match ? match[0] : authUser.trim();
+export function getGoogleDriveDownloadUrl(
+  fileId: string,
+  alternateLinkOrAuthUser?: string | null
+): string {
+  if (alternateLinkOrAuthUser && alternateLinkOrAuthUser.startsWith("http")) {
+    return alternateLinkOrAuthUser;
   }
-  return `https://drive.google.com/u/${authIndex}/uc?export=download&id=${encodeURIComponent(fileId)}`;
+  return `https://drive.google.com/file/d/${encodeURIComponent(fileId)}/view`;
 }
 
 /**
- * Result of attempting to trigger a browser download via window.open.
+ * Result of attempting to trigger a browser open via window.open.
  */
 export interface DownloadTriggerResult {
   success: boolean;
@@ -43,21 +44,25 @@ export interface DownloadTriggerResult {
 }
 
 /**
- * Triggers a file download via window.open(url, '_blank').
- * Detects whether the browser's popup blocker stopped the window from opening.
+ * Opens a Google Drive file preview/download tab via window.open(targetUrl, '_blank').
+ * Uses the API's alternateLink directly and detects browser popup blocker interference.
  */
 export function triggerBrowserDownload(
   fileId: string,
   fileName?: string,
-  authUser?: string | null
+  alternateLink?: string | null
 ): DownloadTriggerResult {
   if (typeof window === "undefined") {
     return { success: false, popupBlocked: false, windowRef: null };
   }
 
-  const url = getGoogleDriveDownloadUrl(fileId, authUser);
+  // Use the alternateLink provided directly by the Classroom API
+  const targetUrl = alternateLink && alternateLink.startsWith("http")
+    ? alternateLink
+    : `https://drive.google.com/file/d/${encodeURIComponent(fileId)}/view`;
+
   try {
-    const newWindow = window.open(url, "_blank");
+    const newWindow = window.open(targetUrl, "_blank");
 
     if (!newWindow || newWindow.closed || typeof newWindow.closed === "undefined") {
       // POPUP BLOCKED!
@@ -84,8 +89,9 @@ export interface BatchDownloadResult {
 }
 
 /**
- * Sequentially triggers browser downloads using window.open with a 1500ms delay.
- * Detects popup blocker interference and immediately breaks the loop so downloads pause.
+ * Sequentially opens Google Drive preview tabs using window.open with a 1500ms delay.
+ * Passes the exact alternateLink provided by the Classroom API.
+ * Detects popup blocker interference and immediately pauses the loop.
  */
 export async function batchDownloadFiles(
   files: BatchDownloadItem[],
@@ -105,8 +111,8 @@ export async function batchDownloadFiles(
 
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
-    const authUser = file.authUser || extractAuthUser(file.alternateLink);
-    const result = triggerBrowserDownload(file.id, file.name, authUser);
+    const targetUrl = file.alternateLink;
+    const result = triggerBrowserDownload(file.id, file.name, targetUrl);
 
     if (result.popupBlocked) {
       if (onPopupBlocked) {
