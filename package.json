@@ -4,9 +4,9 @@
   "license": "MIT",
   "scripts": {
     "dev": "pnpm --filter classroom-exporter-frontend dev",
-    "build": "pnpm --filter classroom-exporter-frontend build",
-    "build:frontend": "pnpm --filter classroom-exporter-frontend build",
-    "build:all": "pnpm run typecheck && pnpm --filter classroom-exporter-frontend build",
+    "build": "pnpm --filter classroom-exporter-frontend build && rm -rf dist && cp -r frontend/dist dist",
+    "build:frontend": "pnpm --filter classroom-exporter-frontend build && rm -rf dist && cp -r frontend/dist dist",
+    "build:all": "pnpm run typecheck && pnpm --filter classroom-exporter-frontend build && rm -rf dist && cp -r frontend/dist dist",
     "typecheck": "pnpm --filter classroom-exporter-frontend typecheck"
   },
   "private": true,
