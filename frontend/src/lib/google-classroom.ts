@@ -14,6 +14,27 @@ export interface DriveFileRef {
   id: string;
   name: string;
   sourceName: string;
+  alternateLink?: string | null;
+  authUser?: string | null;
+}
+
+/**
+ * Extracts the authuser query parameter from an alternateLink URL.
+ * Used to route direct downloads to the appropriate Google account session.
+ */
+export function extractAuthUser(alternateLink?: string | null): string | null {
+  if (!alternateLink) return null;
+  try {
+    const url = new URL(alternateLink);
+    const authuser = url.searchParams.get("authuser");
+    if (authuser !== null && authuser.trim() !== "") {
+      return authuser.trim();
+    }
+  } catch {
+    // Fall back to regex parsing if not a fully valid URL
+  }
+  const match = alternateLink.match(/[?&]authuser=([^&#]+)/i);
+  return match ? decodeURIComponent(match[1].trim()) : null;
 }
 
 /**
@@ -67,7 +88,11 @@ export async function listCourses(accessToken: string): Promise<ClassroomCourse[
 function extractDriveFiles(
   materials: Array<{
     driveFile?: {
-      driveFile?: { id?: string | null; title?: string | null } | null;
+      driveFile?: {
+        id?: string | null;
+        title?: string | null;
+        alternateLink?: string | null;
+      } | null;
     } | null;
   }>,
   sourceName: string,
@@ -76,7 +101,14 @@ function extractDriveFiles(
   for (const mat of materials) {
     const df = mat.driveFile?.driveFile;
     if (df?.id && df.title) {
-      files.push({ id: df.id, name: df.title, sourceName });
+      const authUser = extractAuthUser(df.alternateLink);
+      files.push({
+        id: df.id,
+        name: df.title,
+        sourceName,
+        alternateLink: df.alternateLink ?? null,
+        authUser,
+      });
     }
   }
 }

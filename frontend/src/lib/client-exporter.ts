@@ -1,4 +1,4 @@
-import { discoverCourseFiles, type DriveFileRef } from "./google-classroom";
+import { discoverCourseFiles, extractAuthUser, type DriveFileRef } from "./google-classroom";
 import {
   updateExportJob,
   addExportLog,
@@ -12,49 +12,69 @@ export interface BatchDownloadItem {
   id: string;
   name?: string;
   sourceName?: string;
+  alternateLink?: string | null;
+  authUser?: string | null;
 }
 
 export const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * Constructs the native Google Drive direct download URL.
- * Relies on the user's active Google session cookies in the browser,
- * avoiding the need for restricted Google Drive OAuth scopes.
+ * Includes the optional authuser parameter to ensure correct account routing
+ * for users logged into multiple Google accounts.
  */
-export function getGoogleDriveDownloadUrl(fileId: string): string {
-  return `https://drive.google.com/uc?export=download&id=${fileId}`;
-}
-
-/**
- * Triggers a file download via a dynamically created DOM anchor element.
- */
-export function triggerBrowserDownload(fileId: string, fileName?: string): void {
-  const url = getGoogleDriveDownloadUrl(fileId);
-  const a = document.createElement("a");
-  a.href = url;
-  if (fileName) {
-    a.setAttribute("download", fileName);
+export function getGoogleDriveDownloadUrl(fileId: string, authUser?: string | null): string {
+  let url = `https://drive.google.com/uc?export=download&id=${encodeURIComponent(fileId)}`;
+  if (authUser !== undefined && authUser !== null && authUser.trim() !== "") {
+    url += `&authuser=${encodeURIComponent(authUser.trim())}`;
   }
-  a.target = "_blank";
-  a.rel = "noopener noreferrer";
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+  return url;
 }
 
 /**
- * Sequentially triggers browser downloads with a delay (default 1500ms)
- * between each file to prevent the browser from blocking simultaneous
- * downloads as pop-up spam.
+ * Triggers a file download via an invisible iframe appended to document.body.
+ * Invisible iframes bypass browser popup blockers that terminate programmatic a.click() chains.
+ * Automatically removes the iframe from the DOM after 10 seconds to prevent memory leaks.
+ */
+export function triggerBrowserDownload(
+  fileId: string,
+  fileName?: string,
+  authUser?: string | null
+): HTMLIFrameElement | null {
+  if (typeof document === "undefined") return null;
+
+  const url = getGoogleDriveDownloadUrl(fileId, authUser);
+  const iframe = document.createElement("iframe");
+  iframe.style.display = "none";
+  iframe.src = url;
+  iframe.setAttribute("aria-hidden", "true");
+  iframe.tabIndex = -1;
+
+  document.body.appendChild(iframe);
+
+  // Remove the iframe after 10 seconds to prevent memory leaks
+  setTimeout(() => {
+    if (iframe.parentNode) {
+      iframe.parentNode.removeChild(iframe);
+    }
+  }, 10000);
+
+  return iframe;
+}
+
+/**
+ * Sequentially triggers browser downloads with a delay (default 1000ms)
+ * between each file to prevent the browser from throttling network requests.
  */
 export async function batchDownloadFiles(
   files: BatchDownloadItem[],
-  delayMs = 1500,
+  delayMs = 1000,
   onProgress?: (index: number, file: BatchDownloadItem) => Promise<void> | void
 ): Promise<void> {
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
-    triggerBrowserDownload(file.id, file.name);
+    const authUser = file.authUser || extractAuthUser(file.alternateLink);
+    triggerBrowserDownload(file.id, file.name, authUser);
     if (onProgress) {
       await onProgress(i, file);
     }
@@ -115,13 +135,13 @@ export async function runDirectDownload(
     await addExportLog(
       jobId,
       "info",
-      `Discovered ${total} files. Starting sequential browser download (1.5s delay between files)...`
+      `Discovered ${total} files. Starting sequential browser download (1s delay between files)...`
     );
 
     let downloaded = 0;
     let failed = 0;
 
-    await batchDownloadFiles(files, 1500, async (index, file) => {
+    await batchDownloadFiles(files, 1000, async (index, file) => {
       try {
         downloaded++;
         await notify({ copiedFiles: downloaded, failedFiles: failed });

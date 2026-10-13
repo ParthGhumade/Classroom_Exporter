@@ -34,6 +34,7 @@ export default function ExportSetupPage() {
 
   const { authenticated, accessToken, user, isLoading: authLoading } = useAuth();
   const [isStarting, setIsStarting] = useState(false);
+  const [showWarning, setShowWarning] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Selected file IDs
@@ -119,6 +120,7 @@ export default function ExportSetupPage() {
     }
 
     setIsStarting(true);
+    setShowWarning(true);
     setErrorMsg(null);
 
     const chosenFileIds = Array.from(selectedIds);
@@ -296,6 +298,15 @@ export default function ExportSetupPage() {
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {showWarning && (
+            <div className="rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-200 text-xs sm:text-sm p-3.5 flex items-start gap-2.5 animate-in fade-in duration-200">
+              <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <span className="leading-snug">
+                ⚠️ If your browser blocks the downloads, click the popup-blocker icon in your address bar and select &quot;Always allow&quot;.
+              </span>
             </div>
           )}
 

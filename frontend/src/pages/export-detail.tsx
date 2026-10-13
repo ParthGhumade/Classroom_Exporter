@@ -329,6 +329,16 @@ export default function ExportDetailPage() {
             </div>
           </div>
 
+          {/* Fallback Popup Blocker Warning */}
+          {isRunning && (
+            <div className="rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-200 text-xs sm:text-sm p-3.5 flex items-start gap-2.5 animate-in fade-in duration-200">
+              <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <span className="leading-snug">
+                ⚠️ If your browser blocks the downloads, click the popup-blocker icon in your address bar and select &quot;Always allow&quot;.
+              </span>
+            </div>
+          )}
+
           {/* Action Buttons on Completion */}
           {isCompleted && (
             <div className="pt-3 border-t border-border/40 flex flex-wrap items-center gap-3">
