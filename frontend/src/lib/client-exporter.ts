@@ -19,19 +19,27 @@ export interface BatchDownloadItem {
 export const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * Resolves the Google Drive preview URL.
- * Prefers the official API alternateLink directly, which preserves the user's
- * session routing (including ?authuser=X) seamlessly.
- * Falls back to standard drive view if alternateLink is absent.
+ * Resolves the Google Drive preview/export URL.
+ * Wraps the base file URL with Google's official AccountChooser endpoint if userEmail is provided,
+ * forcing the browser to use the logged-in email session and avoiding 403 Forbidden errors.
  */
 export function getGoogleDriveDownloadUrl(
   fileId: string,
-  alternateLinkOrAuthUser?: string | null
+  alternateLink?: string | null,
+  userEmail?: string | null
 ): string {
-  if (alternateLinkOrAuthUser && alternateLinkOrAuthUser.startsWith("http")) {
-    return alternateLinkOrAuthUser;
+  const baseFileUrl =
+    alternateLink && alternateLink.startsWith("http")
+      ? alternateLink
+      : `https://drive.google.com/file/d/${encodeURIComponent(fileId)}/view`;
+
+  if (userEmail && userEmail.trim() !== "") {
+    return `https://accounts.google.com/AccountChooser?Email=${encodeURIComponent(
+      userEmail.trim()
+    )}&continue=${encodeURIComponent(baseFileUrl)}`;
   }
-  return `https://drive.google.com/file/d/${encodeURIComponent(fileId)}/view`;
+
+  return baseFileUrl;
 }
 
 /**
@@ -45,21 +53,31 @@ export interface DownloadTriggerResult {
 
 /**
  * Opens a Google Drive file preview/download tab via window.open(targetUrl, '_blank').
- * Uses the API's alternateLink directly and detects browser popup blocker interference.
+ * Wraps with Google's official AccountChooser to force the browser to use the logged-in email session.
+ * Detects browser popup blocker interference.
  */
 export function triggerBrowserDownload(
   fileId: string,
   fileName?: string,
-  alternateLink?: string | null
+  alternateLink?: string | null,
+  userEmail?: string | null
 ): DownloadTriggerResult {
   if (typeof window === "undefined") {
     return { success: false, popupBlocked: false, windowRef: null };
   }
 
-  // Use the alternateLink provided directly by the Classroom API
-  const targetUrl = alternateLink && alternateLink.startsWith("http")
-    ? alternateLink
-    : `https://drive.google.com/file/d/${encodeURIComponent(fileId)}/view`;
+  const baseFileUrl =
+    alternateLink && alternateLink.startsWith("http")
+      ? alternateLink
+      : `https://drive.google.com/file/d/${encodeURIComponent(fileId)}/view`;
+
+  // Wrap with Google's official AccountChooser to force the browser to use the logged-in email session
+  const targetUrl =
+    userEmail && userEmail.trim() !== ""
+      ? `https://accounts.google.com/AccountChooser?Email=${encodeURIComponent(
+          userEmail.trim()
+        )}&continue=${encodeURIComponent(baseFileUrl)}`
+      : baseFileUrl;
 
   try {
     const newWindow = window.open(targetUrl, "_blank");
@@ -77,6 +95,7 @@ export function triggerBrowserDownload(
 
 export interface BatchDownloadOptions {
   delayMs?: number;
+  userEmail?: string | null;
   onProgress?: (index: number, file: BatchDownloadItem) => Promise<void> | void;
   onPopupBlocked?: (index: number, file: BatchDownloadItem) => Promise<void> | void;
 }
@@ -90,7 +109,7 @@ export interface BatchDownloadResult {
 
 /**
  * Sequentially opens Google Drive preview tabs using window.open with a 1500ms delay.
- * Passes the exact alternateLink provided by the Classroom API.
+ * Passes the targetUrl wrapped with Google AccountChooser for the user's logged-in email.
  * Detects popup blocker interference and immediately pauses the loop.
  */
 export async function batchDownloadFiles(
@@ -104,6 +123,7 @@ export async function batchDownloadFiles(
       : optionsOrDelayMs;
 
   const delayMs = options.delayMs ?? 1500;
+  const userEmail = options.userEmail;
   const onProgress = options.onProgress;
   const onPopupBlocked = options.onPopupBlocked;
 
@@ -112,7 +132,7 @@ export async function batchDownloadFiles(
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
     const targetUrl = file.alternateLink;
-    const result = triggerBrowserDownload(file.id, file.name, targetUrl);
+    const result = triggerBrowserDownload(file.id, file.name, targetUrl, userEmail);
 
     if (result.popupBlocked) {
       if (onPopupBlocked) {
@@ -155,7 +175,8 @@ export async function runDirectDownload(
   accessToken: string,
   onProgress?: ProgressCallback,
   selectedFileIds?: string[],
-  onPopupBlocked?: () => void
+  onPopupBlocked?: () => void,
+  userEmail?: string | null
 ): Promise<BatchDownloadResult> {
   const notify = async (fields: Partial<ExportJob>) => {
     await updateExportJob(jobId, fields);
@@ -195,7 +216,7 @@ export async function runDirectDownload(
     await addExportLog(
       jobId,
       "info",
-      `Discovered ${total} files. Starting sequential browser download (1500ms delay between files)...`
+      `Discovered ${total} files. Starting sequential browser export (1500ms delay between files)...`
     );
 
     let downloaded = 0;
@@ -203,6 +224,7 @@ export async function runDirectDownload(
 
     const result = await batchDownloadFiles(files, {
       delayMs: 1500,
+      userEmail,
       onProgress: async (index, file) => {
         downloaded++;
         await notify({ copiedFiles: downloaded, failedFiles: failed });

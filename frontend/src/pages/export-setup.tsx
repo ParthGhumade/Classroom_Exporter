@@ -136,11 +136,18 @@ export default function ExportSetupPage() {
       });
 
       // Start client-orchestrated direct download with selected files in background
-      runDirectDownload(job.id, courseId, courseName, accessToken, undefined, chosenFileIds).catch(
-        (err) => {
-          console.error("Download error:", err);
-        }
-      );
+      runDirectDownload(
+        job.id,
+        courseId,
+        courseName,
+        accessToken,
+        undefined,
+        chosenFileIds,
+        () => setPopupBlocked(true),
+        user?.email
+      ).catch((err) => {
+        console.error("Download error:", err);
+      });
 
       // Navigate to detail page to view live progress
       setLocation(`/exports/${job.id}`);
