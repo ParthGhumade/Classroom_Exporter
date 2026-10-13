@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth-context";
 import { createExportJob } from "@/lib/storage";
-import { runDriveExport, runZipDownload } from "@/lib/client-exporter";
+import { runDirectDownload } from "@/lib/client-exporter";
 import { discoverCourseFiles, type DriveFileRef } from "@/lib/google-classroom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,13 +12,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   ArrowLeft,
-  FolderUp,
   Download,
   BookOpen,
   CheckCircle2,
   Loader2,
-  HardDrive,
-  Archive,
   Folder,
   FileText,
   Sparkles,
@@ -29,8 +26,6 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type Mode = "drive" | "zip";
-
 export default function ExportSetupPage() {
   const [, setLocation] = useLocation();
   const searchParams = new URLSearchParams(window.location.search);
@@ -38,7 +33,6 @@ export default function ExportSetupPage() {
   const courseName = searchParams.get("courseName");
 
   const { authenticated, accessToken, user, isLoading: authLoading } = useAuth();
-  const [mode, setMode] = useState<Mode>("zip");
   const [isStarting, setIsStarting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -133,24 +127,16 @@ export default function ExportSetupPage() {
       const job = await createExportJob({
         courseId,
         courseName,
-        mode,
+        mode: "download",
         userEmail: user?.email,
       });
 
-      // Start client-orchestrated export with selected files in background
-      if (mode === "drive") {
-        runDriveExport(job.id, courseId, courseName, accessToken, undefined, chosenFileIds).catch(
-          (err) => {
-            console.error("Export error:", err);
-          }
-        );
-      } else {
-        runZipDownload(job.id, courseId, courseName, accessToken, undefined, chosenFileIds).catch(
-          (err) => {
-            console.error("ZIP download error:", err);
-          }
-        );
-      }
+      // Start client-orchestrated direct download with selected files in background
+      runDirectDownload(job.id, courseId, courseName, accessToken, undefined, chosenFileIds).catch(
+        (err) => {
+          console.error("Download error:", err);
+        }
+      );
 
       // Navigate to detail page to view live progress
       setLocation(`/exports/${job.id}`);
@@ -178,77 +164,26 @@ export default function ExportSetupPage() {
         </p>
       </div>
 
-      {/* Mode selector */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-        <button
-          type="button"
-          onClick={() => setMode("zip")}
-          className={cn(
-            "relative text-left rounded-xl border-2 p-4 sm:p-5 transition-all duration-150 focus:outline-none cursor-pointer active:scale-[0.98] touch-manipulation",
-            mode === "zip"
-              ? "border-primary bg-primary/5 shadow-xs"
-              : "border-border/80 bg-card hover:border-muted-foreground/30 hover:bg-muted/10"
-          )}
-        >
-          <div className="flex items-start justify-between gap-3">
-            <div
-              className={cn(
-                "rounded-lg p-2.5 shrink-0",
-                mode === "zip" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
-              )}
-            >
-              <Archive className="w-5 h-5" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between">
-                <p className="font-semibold text-sm sm:text-base leading-tight mb-1 text-foreground">
-                  Download as ZIP
-                </p>
-                {mode === "zip" && (
-                  <CheckCircle2 className="w-4 h-4 text-primary shrink-0 ml-1" />
-                )}
-              </div>
-              <p className="text-xs sm:text-sm text-muted-foreground leading-snug">
-                Streams files directly to your device into a single organized .zip archive.
-              </p>
-            </div>
+      {/* Download Mode Info Card */}
+      <div className="rounded-xl border-2 border-primary/20 bg-primary/5 p-4 sm:p-5 shadow-2xs">
+        <div className="flex items-start gap-3 sm:gap-4">
+          <div className="rounded-lg p-2.5 bg-primary/10 text-primary shrink-0">
+            <Download className="w-5 h-5" />
           </div>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setMode("drive")}
-          className={cn(
-            "relative text-left rounded-xl border-2 p-4 sm:p-5 transition-all duration-150 focus:outline-none cursor-pointer active:scale-[0.98] touch-manipulation",
-            mode === "drive"
-              ? "border-primary bg-primary/5 shadow-xs"
-              : "border-border/80 bg-card hover:border-muted-foreground/30 hover:bg-muted/10"
-          )}
-        >
-          <div className="flex items-start justify-between gap-3">
-            <div
-              className={cn(
-                "rounded-lg p-2.5 shrink-0",
-                mode === "drive" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
-              )}
-            >
-              <HardDrive className="w-5 h-5" />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <h2 className="font-semibold text-sm sm:text-base text-foreground leading-tight">
+                Direct Browser Download
+              </h2>
+              <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/20 font-medium">
+                Local Device
+              </Badge>
             </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between">
-                <p className="font-semibold text-sm sm:text-base leading-tight mb-1 text-foreground">
-                  Export to Drive
-                </p>
-                {mode === "drive" && (
-                  <CheckCircle2 className="w-4 h-4 text-primary shrink-0 ml-1" />
-                )}
-              </div>
-              <p className="text-xs sm:text-sm text-muted-foreground leading-snug">
-                Copies files directly into an organized Google Drive folder.
-              </p>
-            </div>
+            <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+              Files download individually to your device's download folder in sequence (with a 1.5-second interval between files to prevent browser popup blocking). Downloads use your active Google session cookies with no Google Drive account permissions required.
+            </p>
           </div>
-        </button>
+        </div>
       </div>
 
       {/* File Selection Filter Card */}
@@ -380,17 +315,12 @@ export default function ExportSetupPage() {
             {isStarting ? (
               <>
                 <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 mr-2 animate-spin" />
-                Starting Export…
-              </>
-            ) : mode === "drive" ? (
-              <>
-                <FolderUp className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-                Export {selectedIds.size} {selectedIds.size === 1 ? "File" : "Files"} to Drive
+                Starting Download…
               </>
             ) : (
               <>
                 <Download className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-                Download {selectedIds.size} {selectedIds.size === 1 ? "File" : "Files"} as ZIP
+                Download {selectedIds.size} {selectedIds.size === 1 ? "File" : "Files"} to Device
               </>
             )}
           </Button>

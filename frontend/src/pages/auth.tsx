@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/lib/auth-context";
-import { SiGoogleclassroom, SiGoogledrive } from "react-icons/si";
+import { SiGoogleclassroom } from "react-icons/si";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowRight, Lock, Folders, Zap, Key } from "lucide-react";
+import { Lock, Folders, Zap, Key } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -54,13 +54,13 @@ export default function AuthPage() {
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-primary/10 rounded-full mb-4 text-primary text-xs sm:text-sm font-medium">
               <SiGoogleclassroom className="w-4 h-4" />
-              <span>Google Classroom & Drive Archiver</span>
+              <span>Google Classroom Exporter</span>
             </div>
             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight mb-3 text-foreground leading-tight">
               Archive your classroom with precision.
             </h1>
             <p className="text-base sm:text-lg text-muted-foreground leading-relaxed">
-              Classroom Exporter connects directly to your Google Account to back up all course materials, Drive files, and assignments directly into an organized Google Drive folder or as a single ZIP download.
+              Classroom Exporter connects directly to your Google Account to discover and download course materials, files, and announcements directly to your local device.
             </p>
           </div>
 
@@ -82,9 +82,9 @@ export default function AuthPage() {
                 <Zap className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
               <div>
-                <h3 className="font-semibold text-foreground text-sm sm:text-base">Organized</h3>
+                <h3 className="font-semibold text-foreground text-sm sm:text-base">Direct Download</h3>
                 <p className="text-muted-foreground text-xs sm:text-sm mt-0.5 leading-snug">
-                  Grouped by topic, converts Docs to Office files.
+                  Sequential batch downloading to your device.
                 </p>
               </div>
             </div>
@@ -94,9 +94,9 @@ export default function AuthPage() {
                 <Lock className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
               <div>
-                <h3 className="font-semibold text-foreground text-sm sm:text-base">Flexible Export</h3>
+                <h3 className="font-semibold text-foreground text-sm sm:text-base">Privacy-First</h3>
                 <p className="text-muted-foreground text-xs sm:text-sm mt-0.5 leading-snug">
-                  Save as a ZIP file or export to Google Drive.
+                  Zero restricted scopes, no Drive modification access.
                 </p>
               </div>
             </div>
@@ -115,10 +115,6 @@ export default function AuthPage() {
                 <div className="p-3 sm:p-4 bg-muted/60 rounded-2xl border border-border/50">
                   <SiGoogleclassroom className="w-7 h-7 sm:w-9 sm:h-9 text-[#008375]" />
                 </div>
-                <ArrowRight className="w-5 h-5 text-muted-foreground/40 shrink-0" />
-                <div className="p-3 sm:p-4 bg-muted/60 rounded-2xl border border-border/50">
-                  <SiGoogledrive className="w-7 h-7 sm:w-9 sm:h-9 text-[#1FA463]" />
-                </div>
               </div>
 
               {errorMsg && (
@@ -129,7 +125,7 @@ export default function AuthPage() {
               )}
 
               <div className="bg-primary/5 border border-primary/10 p-3 sm:p-3.5 rounded-xl text-xs sm:text-sm text-center text-muted-foreground leading-relaxed">
-                Connect your Google Account to view your enrolled courses and export files directly into Drive or a ZIP archive.
+                Connect your Google Account to view your enrolled courses and download course materials directly to your device.
               </div>
 
               {isLoading ? (

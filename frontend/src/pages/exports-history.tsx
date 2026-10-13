@@ -157,7 +157,7 @@ export default function ExportsHistoryPage() {
                           <FileCode2 className="w-3.5 h-3.5" />
                           <span>
                             <strong className="text-foreground font-medium">{job.copiedFiles || 0}</strong>{" "}
-                            {job.mode === "zip" ? "downloaded" : "copied"}
+                            {job.mode === "drive" ? "copied" : "downloaded"}
                             {job.failedFiles ? (
                               <span className="text-destructive ml-1">({job.failedFiles} failed)</span>
                             ) : null}

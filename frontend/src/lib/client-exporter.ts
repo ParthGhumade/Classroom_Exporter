@@ -1,12 +1,5 @@
 import { discoverCourseFiles, type DriveFileRef } from "./google-classroom";
 import {
-  createDriveFolder,
-  listFolderFiles,
-  copyOrShortcutDriveFile,
-  fetchFileForZip,
-} from "./google-drive";
-import { downloadFilesAsZip, type ZipFileInput } from "./zip-streamer";
-import {
   updateExportJob,
   addExportLog,
   getExportJob,
@@ -15,186 +8,68 @@ import {
 
 export type ProgressCallback = (job: ExportJob) => void;
 
+export interface BatchDownloadItem {
+  id: string;
+  name?: string;
+  sourceName?: string;
+}
+
+export const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 /**
- * Runs client-side Google Drive export.
- * Directly calls Google Drive API (Google-to-Google transfer).
+ * Constructs the native Google Drive direct download URL.
+ * Relies on the user's active Google session cookies in the browser,
+ * avoiding the need for restricted Google Drive OAuth scopes.
  */
-export async function runDriveExport(
-  jobId: number,
-  courseId: string,
-  courseName: string,
-  accessToken: string,
-  onProgress?: ProgressCallback,
-  selectedFileIds?: string[]
+export function getGoogleDriveDownloadUrl(fileId: string): string {
+  return `https://drive.google.com/uc?export=download&id=${fileId}`;
+}
+
+/**
+ * Triggers a file download via a dynamically created DOM anchor element.
+ */
+export function triggerBrowserDownload(fileId: string, fileName?: string): void {
+  const url = getGoogleDriveDownloadUrl(fileId);
+  const a = document.createElement("a");
+  a.href = url;
+  if (fileName) {
+    a.setAttribute("download", fileName);
+  }
+  a.target = "_blank";
+  a.rel = "noopener noreferrer";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+/**
+ * Sequentially triggers browser downloads with a delay (default 1500ms)
+ * between each file to prevent the browser from blocking simultaneous
+ * downloads as pop-up spam.
+ */
+export async function batchDownloadFiles(
+  files: BatchDownloadItem[],
+  delayMs = 1500,
+  onProgress?: (index: number, file: BatchDownloadItem) => Promise<void> | void
 ): Promise<void> {
-  const notify = async (fields: Partial<ExportJob>) => {
-    await updateExportJob(jobId, fields);
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    triggerBrowserDownload(file.id, file.name);
     if (onProgress) {
-      const updated = await getExportJob(jobId);
-      if (updated) onProgress(updated);
+      await onProgress(i, file);
     }
-  };
-
-  try {
-    await notify({ status: "running" });
-    await addExportLog(jobId, "info", `Starting export for "${courseName}"...`);
-
-    // 1. Create root folder in Google Drive
-    await addExportLog(jobId, "info", `Creating Drive folder "Classroom Export — ${courseName}"...`);
-    const rootFolderId = await createDriveFolder(
-      accessToken,
-      `Classroom Export — ${courseName}`
-    );
-    await notify({ targetFolderId: rootFolderId });
-    await addExportLog(jobId, "info", `Created root folder. ID: ${rootFolderId}`);
-
-    // 2. Discover course files
-    await addExportLog(jobId, "info", "Fetching course coursework, materials, and announcements...");
-    const allFiles = await discoverCourseFiles(accessToken, courseId);
-    const files = selectedFileIds
-      ? allFiles.filter((f) => selectedFileIds.includes(f.id))
-      : allFiles;
-    const total = files.length;
-    await notify({ totalFiles: total });
-
-    if (total === 0) {
-      await addExportLog(jobId, "warning", "No downloadable Drive files selected for this course.");
-      await notify({ status: "completed" });
-      return;
+    if (i < files.length - 1) {
+      await delay(delayMs);
     }
-
-    await addExportLog(
-      jobId,
-      "info",
-      `Discovered ${total} files. Organizing into assignment subfolders...`
-    );
-
-    // Group files by topic/assignment name
-    const grouped = new Map<string, DriveFileRef[]>();
-    for (const f of files) {
-      const groupName = f.sourceName || "General Materials";
-      if (!grouped.has(groupName)) {
-        grouped.set(groupName, []);
-      }
-      grouped.get(groupName)!.push(f);
-    }
-
-    let copied = 0;
-    let skipped = 0;
-    let failed = 0;
-
-    // Cache created subfolder IDs
-    const folderCache = new Map<string, string>();
-
-    for (const [topicName, topicFiles] of grouped.entries()) {
-      let topicFolderId = rootFolderId;
-
-      // If more than 1 topic, create clean subfolders for organization
-      if (grouped.size > 1) {
-        if (!folderCache.has(topicName)) {
-          try {
-            const subId = await createDriveFolder(accessToken, topicName, rootFolderId);
-            folderCache.set(topicName, subId);
-            await addExportLog(jobId, "info", `Created subfolder "${topicName}"`);
-          } catch {
-            topicFolderId = rootFolderId;
-          }
-        }
-        topicFolderId = folderCache.get(topicName) || rootFolderId;
-      }
-
-      // Check existing files in this folder
-      const existing = await listFolderFiles(accessToken, topicFolderId);
-
-      for (const file of topicFiles) {
-        let destName = file.name;
-        if (existing.has(destName)) {
-          // Disambiguate duplicate name instead of dropping file
-          const extMatch = destName.match(/(\.[^.]+)$/);
-          const ext = extMatch ? extMatch[1] : "";
-          const base = extMatch ? destName.slice(0, -ext.length) : destName;
-          destName = `${base} (copy)${ext}`;
-        }
-
-        try {
-          const result = await copyOrShortcutDriveFile(
-            accessToken,
-            file.id,
-            destName,
-            topicFolderId
-          );
-          existing.set(destName, result.id);
-          copied++;
-
-          if (result.action === "copied") {
-            await addExportLog(jobId, "success", `Copied: ${destName}`, {
-              fileId: file.id,
-              fileName: destName,
-              sourceName: file.sourceName,
-              copiedFileId: result.id,
-            });
-          } else if (result.action === "shortcut") {
-            await addExportLog(
-              jobId,
-              "info",
-              `Created Drive Shortcut: ${destName} (form/protected by instructor)`,
-              {
-                fileId: file.id,
-                fileName: destName,
-                sourceName: file.sourceName,
-                copiedFileId: result.id,
-              }
-            );
-          } else {
-            await addExportLog(
-              jobId,
-              "info",
-              `Created Web Link Bookmark: ${destName}.html (direct web access)`,
-              {
-                fileId: file.id,
-                fileName: destName,
-                sourceName: file.sourceName,
-                copiedFileId: result.id,
-              }
-            );
-          }
-        } catch (err: any) {
-          failed++;
-          await addExportLog(
-            jobId,
-            "error",
-            `Failed to export "${file.name}": ${err.message || String(err)}`,
-            { fileId: file.id, fileName: file.name, sourceName: file.sourceName }
-          );
-        }
-
-        await notify({ copiedFiles: copied, skippedFiles: skipped, failedFiles: failed });
-      }
-    }
-
-    await notify({
-      status: "completed",
-      copiedFiles: copied,
-      skippedFiles: skipped,
-      failedFiles: failed,
-    });
-    await addExportLog(
-      jobId,
-      "success",
-      `Export complete! Copied: ${copied}, Skipped: ${skipped}, Failed: ${failed}.`
-    );
-  } catch (err: any) {
-    await notify({ status: "failed" });
-    await addExportLog(jobId, "error", `Export encountered an error: ${err.message || String(err)}`);
   }
 }
 
 /**
- * Runs client-side streaming ZIP download with O(1) memory.
- * Uses an AsyncGenerator to stream files one-by-one directly to disk
- * without buffering multiple file bodies in the browser heap.
+ * Runs client-side direct batch download.
+ * Discovers course files via the Google Classroom API and triggers sequential
+ * browser downloads directly using Google Drive session cookies.
  */
-export async function runZipDownload(
+export async function runDirectDownload(
   jobId: number,
   courseId: string,
   courseName: string,
@@ -210,7 +85,7 @@ export async function runZipDownload(
     }
   };
 
-  // Screen Wake Lock to keep mobile devices active during export
+  // Screen Wake Lock to keep devices awake during export
   let wakeLock: any = null;
   if (typeof navigator !== "undefined" && "wakeLock" in navigator) {
     try {
@@ -222,7 +97,7 @@ export async function runZipDownload(
 
   try {
     await notify({ status: "running" });
-    await addExportLog(jobId, "info", `Preparing streaming ZIP download for "${courseName}"...`);
+    await addExportLog(jobId, "info", `Starting direct download for "${courseName}"...`);
 
     const allFiles = await discoverCourseFiles(accessToken, courseId);
     const files = selectedFileIds
@@ -240,81 +115,63 @@ export async function runZipDownload(
     await addExportLog(
       jobId,
       "info",
-      `Discovered ${total} files. Initiating O(1) memory stream directly to local storage...`
+      `Discovered ${total} files. Starting sequential browser download (1.5s delay between files)...`
     );
 
-    let processed = 0;
+    let downloaded = 0;
     let failed = 0;
 
-    // Pull-based async generator: fetches files strictly on-demand.
-    // Each file stream is consumed and garbage-collected before fetching the next.
-    async function* makeZipEntries(): AsyncGenerator<ZipFileInput, void, unknown> {
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const folderPrefix = file.sourceName
-          ? `${file.sourceName.replace(/[<>:"/\\|?*]/g, "_").trim()}/`
-          : "";
-
-        try {
-          await addExportLog(
-            jobId,
-            "info",
-            `Fetching (${i + 1}/${total}): ${file.name}...`
-          );
-
-          const fileData = await fetchFileForZip(accessToken, file.id, file.name);
-
-          processed++;
-          await notify({ copiedFiles: processed, failedFiles: failed });
-          await addExportLog(jobId, "success", `Packaged: ${file.name}`, {
+    await batchDownloadFiles(files, 1500, async (index, file) => {
+      try {
+        downloaded++;
+        await notify({ copiedFiles: downloaded, failedFiles: failed });
+        await addExportLog(
+          jobId,
+          "success",
+          `Triggered download (${index + 1}/${total}): ${file.name || file.id}`,
+          {
             fileId: file.id,
             fileName: file.name,
             sourceName: file.sourceName,
-          });
-
-          yield {
-            name: `${folderPrefix}${fileData.name}`,
-            input: fileData.input,
-          };
-          // Once client-zip consumes this input, the previous stream buffer is collected
-        } catch (err: any) {
-          failed++;
-          await notify({ copiedFiles: processed, failedFiles: failed });
-          await addExportLog(
-            jobId,
-            "warning",
-            `Skipped unreadable file "${file.name}": ${err.message || String(err)}`,
-            { fileId: file.id, fileName: file.name, sourceName: file.sourceName }
-          );
-        }
+          }
+        );
+      } catch (err: any) {
+        failed++;
+        await notify({ copiedFiles: downloaded, failedFiles: failed });
+        await addExportLog(
+          jobId,
+          "error",
+          `Failed to trigger download for "${file.name || file.id}": ${err.message || String(err)}`,
+          { fileId: file.id, fileName: file.name, sourceName: file.sourceName }
+        );
       }
-    }
-
-    await downloadFilesAsZip(makeZipEntries(), courseName);
+    });
 
     await notify({
       status: "completed",
-      copiedFiles: processed,
+      copiedFiles: downloaded,
       failedFiles: failed,
     });
     await addExportLog(
       jobId,
       "success",
-      `Download complete! ${processed} files packaged into "${courseName}.zip".`
+      `Batch download complete! Triggered ${downloaded} downloads to your local device.`
     );
   } catch (err: any) {
-    if (err.message === "Save cancelled by user") {
-      await notify({ status: "failed" });
-      await addExportLog(jobId, "warning", "Export was cancelled by user.");
-      return;
-    }
-
     await notify({ status: "failed" });
-    await addExportLog(jobId, "error", `ZIP download failed: ${err.message || String(err)}`);
-    throw err;
+    await addExportLog(
+      jobId,
+      "error",
+      `Export encountered an error: ${err.message || String(err)}`
+    );
   } finally {
     if (wakeLock) {
       wakeLock.release().catch(() => {});
     }
   }
 }
+
+// Backward-compatibility aliases for existing calls
+export const runBatchDownload = runDirectDownload;
+export const runDriveExport = runDirectDownload;
+export const runZipDownload = runDirectDownload;

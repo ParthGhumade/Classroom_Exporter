@@ -164,13 +164,17 @@ export default function ExportDetailPage() {
             </h1>
             <div className="pt-0.5">
               <Badge variant="outline" className="text-[11px] font-medium py-0.5 px-2 uppercase tracking-wide">
-                {job?.mode === "drive" ? "Google Drive" : "ZIP Download"}
+                {job?.mode === "download"
+                  ? "Direct Download"
+                  : job?.mode === "drive"
+                  ? "Google Drive"
+                  : "ZIP Download"}
               </Badge>
             </div>
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3 shrink-0 self-start sm:self-auto">
-            {folderUrl && (
+            {job?.mode === "drive" && folderUrl && (
               <Button
                 variant="outline"
                 size="sm"
@@ -225,24 +229,20 @@ export default function ExportDetailPage() {
               <div>
                 <h2 className="text-base sm:text-lg font-semibold text-foreground">
                   {isRunning
-                    ? job?.mode === "zip"
-                      ? "Downloading Course Files..."
-                      : "Exporting to Google Drive..."
+                    ? "Downloading Course Files to Device..."
                     : isCompleted
-                    ? job?.mode === "zip"
-                      ? "Download Completed"
-                      : "Google Drive Export Completed"
+                    ? "Download Completed"
                     : isFailed
-                    ? "Export Stopped"
-                    : "Preparing Export..."}
+                    ? "Download Stopped"
+                    : "Preparing Download..."}
                 </h2>
                 <p className="text-xs sm:text-sm text-muted-foreground">
                   {isRunning
-                    ? "Saving course files directly to your device."
+                    ? "Saving course files directly to your device via browser download."
                     : isCompleted
-                    ? "All selected files have been exported successfully."
+                    ? "All selected files have been downloaded to your computer."
                     : isFailed
-                    ? "An error occurred during export. You can retry from the courses page."
+                    ? "An error occurred during download. You can retry from the courses page."
                     : "Connecting to Google Classroom..."}
                 </p>
               </div>
@@ -305,9 +305,9 @@ export default function ExportDetailPage() {
                   <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-medium">
                     <Sparkles className="w-3.5 h-3.5 shrink-0" />
                     <span>
-                      {job?.mode === "zip"
-                        ? "ZIP file saved directly to your downloads"
-                        : "Files ready in your Google Drive folder"}
+                      {job?.mode === "drive"
+                        ? "Files ready in your Google Drive folder"
+                        : "Files saved directly to your local downloads"}
                     </span>
                   </div>
                 ) : isFailed ? (

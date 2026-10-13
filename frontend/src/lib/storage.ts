@@ -6,7 +6,7 @@ export interface ExportJob {
   courseName: string;
   userEmail?: string | null;
   targetFolderId?: string | null;
-  mode: "drive" | "zip";
+  mode: "download" | "drive" | "zip";
   status: "pending" | "running" | "completed" | "failed";
   totalFiles: number;
   copiedFiles: number;
@@ -64,7 +64,7 @@ function appendLocalLog(exportId: number, log: ExportLog) {
 export async function createExportJob(params: {
   courseId: string;
   courseName: string;
-  mode: "drive" | "zip";
+  mode?: "download" | "drive" | "zip";
   userEmail?: string | null;
 }): Promise<ExportJob> {
   const newId = Date.now();
@@ -74,7 +74,7 @@ export async function createExportJob(params: {
     courseId: params.courseId,
     courseName: params.courseName,
     userEmail: params.userEmail || null,
-    mode: params.mode,
+    mode: params.mode || "download",
     status: "pending",
     totalFiles: 0,
     copiedFiles: 0,
