@@ -19,22 +19,16 @@ export interface DriveFileRef {
 }
 
 /**
- * Extracts the authuser query parameter from an alternateLink URL.
- * Used to route direct downloads to the appropriate Google account session.
+ * Extracts the authuser digit index from an alternateLink URL (e.g., https://drive.google.com/file/d/XYZ/view?authuser=1).
+ * Defaults to '0' if not present or cannot be parsed.
  */
-export function extractAuthUser(alternateLink?: string | null): string | null {
-  if (!alternateLink) return null;
-  try {
-    const url = new URL(alternateLink);
-    const authuser = url.searchParams.get("authuser");
-    if (authuser !== null && authuser.trim() !== "") {
-      return authuser.trim();
-    }
-  } catch {
-    // Fall back to regex parsing if not a fully valid URL
+export function extractAuthUser(alternateLink?: string | null): string {
+  if (!alternateLink) return "0";
+  const authMatch = alternateLink.match(/authuser=(\d+)/i);
+  if (authMatch && authMatch[1]) {
+    return authMatch[1];
   }
-  const match = alternateLink.match(/[?&]authuser=([^&#]+)/i);
-  return match ? decodeURIComponent(match[1].trim()) : null;
+  return "0";
 }
 
 /**

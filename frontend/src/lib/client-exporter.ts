@@ -19,16 +19,18 @@ export interface BatchDownloadItem {
 export const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * Constructs the native Google Drive direct download URL.
- * Includes the optional authuser parameter to ensure correct account routing
- * for users logged into multiple Google accounts.
+ * Constructs the native Google Drive direct download URL using the path-based format.
+ * Format: https://drive.google.com/u/{authIndex}/uc?export=download&id={fileId}
+ * Placing authIndex directly into the URL path (/u/{authIndex}/) prevents Google Drive
+ * internal redirects from stripping authuser and defaulting to account 0 (403 Forbidden).
  */
 export function getGoogleDriveDownloadUrl(fileId: string, authUser?: string | null): string {
-  let url = `https://drive.google.com/uc?export=download&id=${encodeURIComponent(fileId)}`;
+  let authIndex = "0";
   if (authUser !== undefined && authUser !== null && authUser.trim() !== "") {
-    url += `&authuser=${encodeURIComponent(authUser.trim())}`;
+    const match = authUser.trim().match(/\d+/);
+    authIndex = match ? match[0] : authUser.trim();
   }
-  return url;
+  return `https://drive.google.com/u/${authIndex}/uc?export=download&id=${encodeURIComponent(fileId)}`;
 }
 
 /**

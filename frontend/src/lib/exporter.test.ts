@@ -19,34 +19,34 @@ describe("Browser Bypass, Multi-Account Routing & Iframe Download Unit Tests", (
     document.body.innerHTML = "";
   });
 
-  it("extracts authuser query parameter from alternateLink correctly", () => {
+  it("extracts authuser digit index from alternateLink correctly with '0' fallback", () => {
     expect(extractAuthUser("https://drive.google.com/file/d/XYZ123/view?authuser=1")).toBe("1");
     expect(extractAuthUser("https://drive.google.com/file/d/XYZ123/view?usp=sharing&authuser=2")).toBe("2");
     expect(extractAuthUser("https://docs.google.com/document/d/ABC/edit?authuser=0#heading=h.1")).toBe("0");
-    expect(extractAuthUser("https://drive.google.com/file/d/XYZ123/view")).toBeNull();
-    expect(extractAuthUser(null)).toBeNull();
-    expect(extractAuthUser(undefined)).toBeNull();
+    expect(extractAuthUser("https://drive.google.com/file/d/XYZ123/view")).toBe("0");
+    expect(extractAuthUser(null)).toBe("0");
+    expect(extractAuthUser(undefined)).toBe("0");
   });
 
-  it("constructs native download URLs with optional authuser parameter", () => {
+  it("constructs native download URLs with path-based authIndex (/u/{index}/)", () => {
     const fileId = "1a2B3c4D5e6F";
-    // Without authUser
+    // Without authUser defaults to 0
     expect(getGoogleDriveDownloadUrl(fileId)).toBe(
-      `https://drive.google.com/uc?export=download&id=${fileId}`
+      `https://drive.google.com/u/0/uc?export=download&id=${fileId}`
     );
     expect(getGoogleDriveDownloadUrl(fileId, null)).toBe(
-      `https://drive.google.com/uc?export=download&id=${fileId}`
+      `https://drive.google.com/u/0/uc?export=download&id=${fileId}`
     );
     expect(getGoogleDriveDownloadUrl(fileId, "")).toBe(
-      `https://drive.google.com/uc?export=download&id=${fileId}`
+      `https://drive.google.com/u/0/uc?export=download&id=${fileId}`
     );
 
     // With authUser
     expect(getGoogleDriveDownloadUrl(fileId, "1")).toBe(
-      `https://drive.google.com/uc?export=download&id=${fileId}&authuser=1`
+      `https://drive.google.com/u/1/uc?export=download&id=${fileId}`
     );
     expect(getGoogleDriveDownloadUrl(fileId, "2")).toBe(
-      `https://drive.google.com/uc?export=download&id=${fileId}&authuser=2`
+      `https://drive.google.com/u/2/uc?export=download&id=${fileId}`
     );
   });
 
@@ -58,7 +58,7 @@ describe("Browser Bypass, Multi-Account Routing & Iframe Download Unit Tests", (
     const result = triggerBrowserDownload(fileId, "Test.pdf", "1");
 
     expect(openSpy).toHaveBeenCalledWith(
-      `https://drive.google.com/uc?export=download&id=${fileId}&authuser=1`,
+      `https://drive.google.com/u/1/uc?export=download&id=${fileId}`,
       "_blank"
     );
     expect(result.success).toBe(true);
